@@ -1,0 +1,21 @@
+# The default model selection, chosen by the user on 2026-10-18 (M1).
+# Any run can change it in the dashboard. Model ids are OpenRouter's.
+
+[models]
+translators = [
+    "anthropic/claude-opus-5.5",
+    "openai/gpt-6.1-sol",
+    "google/gemini-4-argon",
+    "deepseek/deepseek-v4-pro-0813",
+    "meta/muse-wonder",
+    "google-translate",
+]
+# Google Translate can't judge.
+judges = [
+    "anthropic/claude-opus-5.5",
+    "openai/gpt-6.1-sol",
+    "google/gemini-4-argon",
+    "deepseek/deepseek-v4-pro-0813",
+    "meta/muse-wonder",
+]
+# The top judge's default is decided by the test run (M6).

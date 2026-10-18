@@ -7,7 +7,9 @@ authors = [
     { name = "cvio", email = "steven.robbins.000@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "httpx>=0.28.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.11.26,<0.12.0"]
