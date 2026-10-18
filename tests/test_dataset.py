@@ -2,7 +2,7 @@
 
 import pytest
 
-from pair_refiner.dataset import DatasetError, DatasetSettings, read_dataset
+from pair_refiner.dataset import DatasetError, DatasetSettings, read_dataset, read_settings
 
 EN_FA = DatasetSettings(source_lang="en", target_lang="fa")
 
@@ -180,6 +180,50 @@ def test_m2_sample_csv_reads_correctly(tmp_path):
          ()),  # اتوبوس کجاست؟
         ("s6", "Where is the bus?", None, None, ("Where is the bus?",)),
     ]
+
+
+def test_the_older_spelling_of_haii_and_aii_becomes_the_modern_one(tmp_path):
+    path = write(tmp_path, "fa.csv", (
+        "source\n"
+        "یادداشت‌هائی نوشت.\n"  # یادداشت‌هائی نوشت.
+        "یادداشت هائی دیگر\n"  # یادداشت هائی دیگر (written apart)
+        "جدائی سخت است\n"  # جدائی سخت است
+        "اسرائیل و اخر\n"  # اسرائیل و اخر: not a word ending, no madda added
+    ))
+
+    rows = read_dataset(path, DatasetSettings(source_lang="fa", target_lang="en"))
+
+    assert [r.source for r in rows] == [
+        "یادداشت‌هایی نوشت.",  # یادداشت‌هایی نوشت.
+        "یادداشت‌هایی دیگر",  # یادداشت‌هایی دیگر
+        "جدایی سخت است",  # جدایی سخت است
+        "اسرائیل و اخر",  # unchanged
+    ]
+
+
+def test_a_settings_file_names_the_dataset_and_its_settings(tmp_path):
+    write(tmp_path, "data.csv", "source,target\nThank you.,ممنونم.\n")
+    settings_file = write(tmp_path, "data.toml", (
+        'file = "data.csv"\n'  # next to the settings file
+        'source_lang = "en"\n'
+        'target_lang = "fa"\n'
+        'register = "written"\n'
+        'origin = "unknown"\n'
+        "conversation = false\n"
+    ))
+
+    path, settings = read_settings(settings_file)
+
+    assert path == tmp_path / "data.csv"
+    assert settings == DatasetSettings(source_lang="en", target_lang="fa", register="written", origin="unknown")
+    assert [(r.source, r.origin) for r in read_dataset(path, settings)] == [("Thank you.", "unknown")]
+
+
+def test_a_settings_file_with_an_unknown_setting_stops_with_a_clear_message(tmp_path):
+    settings_file = write(tmp_path, "data.toml", 'file = "data.csv"\nsource_lang = "en"\ntarget_lang = "fa"\norgin = "native"\n')
+
+    with pytest.raises(DatasetError, match="orgin"):
+        read_settings(settings_file)
 
 
 def test_an_existing_persian_translation_is_tidied_but_english_is_left_alone(tmp_path):

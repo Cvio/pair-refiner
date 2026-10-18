@@ -1,0 +1,11 @@
+# 2,000 English->Persian pairs sampled from MIZAN: English novels with their published Persian
+# translations, sentence-aligned by software. Licence: CC-BY-4.0.
+# Used for the M4 pilot (its first 20 rows, both directions) and the 200-sentence pilot after M8.
+# One English sentence repeats ("what do you want?", lines 1301 and 1871), so 1,999 rows are read.
+
+file = 'D:\AI_Data\projects\datasets\farsi\mizan\mizan-sample-2000.csv'
+source_lang = "en"
+target_lang = "fa"
+register = "written"
+origin = "unknown"
+conversation = false

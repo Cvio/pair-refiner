@@ -2,13 +2,15 @@
 
 import csv
 import json
-from dataclasses import dataclass
+import tomllib
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Literal
 
 from pair_refiner import persian
 
 Origin = Literal["native", "unknown"]
+Register = Literal["written", "spoken", "both"]
 
 
 class DatasetError(Exception):
@@ -19,6 +21,7 @@ class DatasetError(Exception):
 class DatasetSettings:
     source_lang: str
     target_lang: str
+    register: Register = "written"  # the default for runs on this dataset (Persian only)
     origin: Origin | None = None  # where the dataset's own translations came from
     conversation: bool = False  # lines are sent with the previous two lines of their conversation
     conversation_column: str | None = None  # names each line's conversation; without it, one conversation
@@ -31,6 +34,19 @@ class Row:
     existing: str | None  # the dataset's own translation, if it has one
     origin: Origin | None  # set only when there is an existing translation
     context: tuple[str, ...] = ()  # the previous two original sentences of the same conversation
+
+
+def read_settings(settings_file: Path) -> tuple[Path, DatasetSettings]:
+    """A dataset's settings file (TOML): `file` (relative to the settings file) and the settings."""
+    with open(settings_file, "rb") as f:
+        values = tomllib.load(f)
+    file = values.pop("file", None)
+    known = {field.name for field in fields(DatasetSettings)}
+    if file is None or values.keys() - known:
+        unknown = ", ".join(sorted(values.keys() - known)) or "none"
+        raise DatasetError(f"{settings_file.name}: needs `file` and accepts only {', '.join(sorted(known))} "
+                           f"(unknown: {unknown}).")
+    return settings_file.parent / file, DatasetSettings(**values)
 
 
 def read_dataset(path: Path, settings: DatasetSettings) -> list[Row]:

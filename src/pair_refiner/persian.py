@@ -99,8 +99,8 @@ _TIDY = [(re.compile(p), r) for p, r in [
 _AFFIXES = [(re.compile(p), r) for p, r in [
     (r"([^ ]\u0647) \u06cc ", r"\1" + ZWNJ + "\u06cc "),  # the ezafe ye after a word ending in heh
     (r"(?<=[^\n\d " + _PUNC_AFTER + _PUNC_BEFORE + r"]{2}) "
-     r"(\u062a\u0631(\u06cc\u0646?)?|\u06af\u0631\u06cc?|\u0647\u0627\u06cc?)(?=[ \n" + _PUNC_AFTER + _PUNC_BEFORE + r"]|$)",
-     ZWNJ + r"\1"),  # -tar / -tarin, -gar / -gari, -ha / -haye written apart
+     r"(\u062a\u0631(\u06cc\u0646?)?|\u06af\u0631\u06cc?|\u0647\u0627(?:\u06cc\u06cc?)?)(?=[ \n" + _PUNC_AFTER + _PUNC_BEFORE + r"]|$)",
+     ZWNJ + r"\1"),  # -tar / -tarin, -gar / -gari, -ha / -haye / -haii written apart
     (r"([^ ]\u0647) (\u0627(\u0645|\u06cc\u0645|\u0634|\u0646\u062f|\u06cc|\u06cc\u062f|\u062a))(?=[ \n" + _PUNC_AFTER + r"]|$)",
      r"\1" + ZWNJ + r"\2"),  # the endings after a word ending in heh
     (r"(\u0647)(\u0647\u0627)", r"\1" + ZWNJ + r"\2"),  # -ha joined straight onto a heh
@@ -111,9 +111,15 @@ _AFFIXES = [(re.compile(p), r) for p, r in [
 _MI_APART = re.compile(r"(^| )(\u0646?\u0645\u06cc) ([" + _LETTERS + r"]+)")
 
 
+# The older spelling ائی at the end of a word (هائی, جدائی) as the modern ایی. Not in volis: MIZAN uses
+# it a lot. Inside a word (اسرائیل) it is left alone. A missing madda (اخر for آخر) isn't added: no
+# rule can tell where it belongs, so that is left to the judges.
+_OLD_AII = re.compile(r"ائی(?![" + _LETTERS + r"ئ])")
+
+
 def tidy(text: str) -> str:
     """Persian text with the look-alike letters, the digits and the half-spaces put right."""
-    text = text.translate(_TABLE)
+    text = _OLD_AII.sub("ایی", text.translate(_TABLE))
     for pattern, replacement in _TIDY + _AFFIXES:
         text = pattern.sub(replacement, text)
     return _MI_APART.sub(lambda m: f"{m.group(1)}{m.group(2)}{ZWNJ}{m.group(3)}", text)
