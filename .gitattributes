@@ -1,0 +1,6 @@
+# Keep text files with LF line endings on every machine.
+* text=auto eol=lf
+
+# Expected output files (seam 6) are compared byte for byte, BOM and line endings included,
+# so git must never change them.
+tests/expected/** -text

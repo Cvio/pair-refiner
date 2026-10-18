@@ -1,0 +1,15 @@
+# Copy this file to keys.toml (in this same folder) and put your real keys in it.
+# keys.toml is git-ignored, so it is never committed. Never put real keys in this file.
+# The README explains, step by step, how to get each key.
+
+[openrouter]
+# The key the tool uses for every model call.
+# Set a spending limit on this key on OpenRouter's site, as a backstop.
+api_key = "sk-or-v1-..."
+
+# A second, management key. It is used only to read your balance.
+management_key = "sk-or-v1-..."
+
+[google]
+# The Google Cloud Translation API key, used only for Google Translate.
+translate_api_key = "..."
