@@ -45,7 +45,7 @@ def run(rows: list[Row], dataset: DatasetSettings, settings: RunSettings, connec
     if (dry_run or settings.spending_limit is not None) and estimator is None:
         raise ValueError("a dry run or a spending limit needs an estimator")
     if dry_run:  # spends nothing: no call is made
-        estimate = sum(estimator.sentence_cost(row, _refine_settings(dataset, settings, register))
+        estimate = sum(estimator.sentence_cost(row, refine_settings(dataset, settings, register))
                        for row in rows[: settings.sentence_limit] for register in _registers(dataset, settings))
         return RunReport("estimate", estimate=estimate)
     started, clock = datetime.now().astimezone(), time.monotonic()
@@ -53,12 +53,12 @@ def run(rows: list[Row], dataset: DatasetSettings, settings: RunSettings, connec
     report = RunReport("finished")
     for row in rows[: settings.sentence_limit]:
         for register in _registers(dataset, settings):
-            refine_settings = _refine_settings(dataset, settings, register)
+            this = refine_settings(dataset, settings, register)
             if settings.spending_limit is not None and \
-                    ledger.spent + estimator.sentence_cost(row, refine_settings) > settings.spending_limit:
+                    ledger.spent + estimator.sentence_cost(row, this) > settings.spending_limit:
                 report.status = "stopped at the spending limit"
                 break
-            result = refine(row, refine_settings, ledger)
+            result = refine(row, this, ledger)
             report.sentences.append(Sentence(row, register, result))
         else:
             continue
@@ -98,7 +98,7 @@ def _registers(dataset: DatasetSettings, settings: RunSettings) -> list[str | No
     return ["written", "spoken"] if settings.register == "both" else [settings.register]
 
 
-def _refine_settings(dataset: DatasetSettings, settings: RunSettings, register: str | None) -> RefineSettings:
+def refine_settings(dataset: DatasetSettings, settings: RunSettings, register: str | None) -> RefineSettings:
     return RefineSettings(
         source_lang=dataset.source_lang, target_lang=dataset.target_lang, register=register or "written",
         translators=settings.translators, judges=settings.judges, top_judge=settings.top_judge,

@@ -13,6 +13,9 @@ wheels/
 # Secrets: never commit these
 keys.toml
 
+# Downloaded data (FLORES+ is gated: never redistribute it)
+inputs/
+
 # Run outputs and the shared answer cache
 runs/
 cache/

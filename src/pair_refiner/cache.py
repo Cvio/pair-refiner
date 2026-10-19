@@ -5,6 +5,7 @@ import dataclasses
 import hashlib
 import json
 import sqlite3
+import threading
 from pathlib import Path
 
 from pair_refiner.connection import Answer, Connection, Task
@@ -18,7 +19,8 @@ class CachedConnection:
         self.connection = connection
         self.fingerprint = connection.fingerprint
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(path)
+        self.db = sqlite3.connect(path, check_same_thread=False, timeout=60)
+        self.lock = threading.Lock()  # sentences may be refined in parallel
         self.db.execute("""CREATE TABLE IF NOT EXISTS answers (
             key TEXT PRIMARY KEY, kind TEXT, model TEXT, text TEXT, cost REAL,
             input_tokens INTEGER, output_tokens INTEGER, stored TEXT DEFAULT CURRENT_TIMESTAMP)""")
@@ -39,12 +41,14 @@ class CachedConnection:
         request = [self.connection.fingerprint, kind, model,
                    *(dataclasses.asdict(a) if isinstance(a, Task) else a for a in args)]
         key = hashlib.sha256(json.dumps(request, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
-        row = self.db.execute("SELECT text, input_tokens, output_tokens FROM answers WHERE key = ?", (key,)).fetchone()
+        with self.lock:
+            row = self.db.execute("SELECT text, input_tokens, output_tokens FROM answers WHERE key = ?",
+                                  (key,)).fetchone()
         if row:
             return Answer(row[0], 0.0, row[1], row[2])
         answer = getattr(self.connection, kind)(model, *args)
-        with self.db:  # committed at once, so a crash right after loses nothing paid for
-            self.db.execute("INSERT INTO answers (key, kind, model, text, cost, input_tokens, output_tokens) "
+        with self.lock, self.db:  # committed at once, so a crash right after loses nothing paid for
+            self.db.execute("INSERT OR IGNORE INTO answers (key, kind, model, text, cost, input_tokens, output_tokens) "
                             "VALUES (?, ?, ?, ?, ?, ?, ?)",
                             (key, kind, model, answer.text, answer.cost, answer.input_tokens, answer.output_tokens))
         return answer
