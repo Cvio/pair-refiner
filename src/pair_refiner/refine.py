@@ -178,15 +178,16 @@ def _back_translate(winner: Candidate, row: Row, settings: RefineSettings,
 
 
 def _ask_twice(ask, parse):
-    """A malformed answer is asked for once more. Returns (parsed or None, whether both answers were empty)."""
-    empty = True
+    """A malformed answer is asked for once more; a refusal (an empty answer) never is: repeating refused
+    requests got the account blocked by Meta in M6. Returns (parsed or None, whether it was a refusal)."""
     for attempt in (1, 2):
         raw = ask(attempt)
+        if not raw.strip():
+            return None, True
         parsed = parse(raw)
         if parsed is not None:
             return parsed, False
-        empty = empty and not raw.strip()
-    return None, empty
+    return None, False
 
 
 def _no_vote(judge: str, refused: bool, calls: _Calls) -> None:

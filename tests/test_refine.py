@@ -332,13 +332,15 @@ def test_a_translator_that_answers_with_nothing_is_left_out_with_a_note():
     assert result.flags == []
 
 
-def test_a_judge_that_answers_with_nothing_twice_has_no_vote_and_a_note_not_a_flag():
+def test_a_judge_that_answers_with_nothing_is_not_asked_again_and_has_no_vote_and_a_note():
+    # A refusal is never repeated: in M6, repeated refused requests got the account blocked by Meta.
     standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
                       panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
-                      top_pick=ON_TABLE, garbled={"m/d": ["", ""]})
+                      top_pick=ON_TABLE, garbled={"m/d": [""]})
 
     result = refine(BOOK, settings(), standin)
 
+    assert [k for k in standin.kinds() if k == ("judge", "m/d")] == [("judge", "m/d")]  # asked once only
     assert {c.text: c.scores for c in result.candidates} == {ON_TABLE: {"m/c": (5, 5)}, OVER_TABLE: {"m/c": (3, 3)}}
     assert result.notes == ["no answer from m/d"]
     assert result.flags == []
@@ -347,10 +349,11 @@ def test_a_judge_that_answers_with_nothing_twice_has_no_vote_and_a_note_not_a_fl
 def test_a_top_judge_that_answers_with_nothing_leaves_the_panels_favourite_with_a_note():
     standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
                       panel={judge: {ON_TABLE: (3, 3), OVER_TABLE: (5, 5)} for judge in ("m/c", "m/d")},
-                      top_pick=ON_TABLE, garbled={"m/e": ["", ""]})
+                      top_pick=ON_TABLE, garbled={"m/e": [""]})
 
     result = refine(BOOK, settings(top_judge="m/e"), standin)
 
+    assert [k for k in standin.kinds() if k[0] == "top_judge"] == [("top_judge", "m/e")]  # asked once only
     assert result.winner.text == OVER_TABLE
     assert result.notes == ["no answer from m/e"]
     assert result.flags == []

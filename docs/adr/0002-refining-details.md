@@ -20,6 +20,8 @@ Date: 2026-10-18. Decided with the user at the start of M3. BUILD.md left these 
   choice). A translator's refusal leaves it with no candidate; a judge's refusal (twice) leaves no vote; a
   top judge's refusal leaves the panel's favourite as winner; a double-check refusal passes to the next AI
   model. Each gives the note "no answer from <model>", not a flag. In the test run, a refused sentence
-  counts as an empty translation for that translator.
+  counts as an empty translation for that translator. **A refusal is never asked again:** the retries
+  and restarts repeated refused requests, and Meta then blocked the account for "repeated policy
+  violations". Meta's models are out of defaults.toml until that is resolved.
 - **A top judge whose answer is malformed twice:** the panel's highest-scored candidate wins, and
   the row is flagged for malformed judge answers.

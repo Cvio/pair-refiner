@@ -1,5 +1,9 @@
 # The default model selection, chosen by the user on 2026-10-18 (M1).
 # Any run can change it in the dashboard. Model ids are OpenRouter's.
+#
+# meta/muse-wonder is taken out for now (2026-10-19, user's choice): during the M6 test run Meta blocked this
+# account ("Your access has been restricted due to repeated policy violations") after its filter silently
+# refused FLORES+ medical sentences. Put it back only once the block is lifted.
 
 [models]
 translators = [
@@ -7,7 +11,6 @@ translators = [
     "openai/gpt-6.1-sol",
     "google/gemini-4-argon",
     "deepseek/deepseek-v4-pro-0813",
-    "meta/muse-wonder",
     "google-translate",
 ]
 # Google Translate can't judge.
@@ -16,6 +19,5 @@ judges = [
     "openai/gpt-6.1-sol",
     "google/gemini-4-argon",
     "deepseek/deepseek-v4-pro-0813",
-    "meta/muse-wonder",
 ]
 # The top judge's default is decided by the test run (M6).
