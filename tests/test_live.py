@@ -1,10 +1,58 @@
-"""Seam 8: the live check. Talks to the real services; run by hand with `uv run pytest -m live`."""
+"""Seam 8: the live check. Talks to the real services; run by hand with `uv run pytest -m live`.
+The refining check costs about $0.20."""
+
+import tomllib
+from pathlib import Path
 
 import pytest
 
-from pair_refiner.connection import OpenRouter
+from pair_refiner.cache import CachedConnection
+from pair_refiner.connection import GOOGLE_TRANSLATE, OpenRouter
+from pair_refiner.dataset import Row
+from pair_refiner.live import LiveConnection, load_keys
+from pair_refiner.refine import RefineSettings, refine
 
 pytestmark = pytest.mark.live
+REPO = Path(__file__).parent.parent
+
+
+class Recording:
+    """Passes calls to the live connection and keeps every answer, to check its shape."""
+
+    def __init__(self, connection):
+        self.connection, self.fingerprint, self.answers = connection, connection.fingerprint, []
+
+    def __getattr__(self, kind):
+        def call(model, *args):
+            answer = getattr(self.connection, kind)(model, *args)
+            self.answers.append((kind, model, answer))
+            return answer
+        return call
+
+
+def test_three_real_sentences_have_the_shape_the_standin_assumes(tmp_path):
+    with open(REPO / "defaults.toml", "rb") as f:
+        models = tomllib.load(f)["models"]
+    live = Recording(LiveConnection(load_keys(REPO / "keys.toml")))
+    connection = CachedConnection(live, tmp_path / "answers.sqlite")  # empty: every answer is fresh
+    settings = RefineSettings(source_lang="en", target_lang="fa", register="written",
+                              translators=models["translators"], judges=models["judges"],
+                              top_judge=models["judges"][0], back_translation=True)
+    sentences = ["The book is on the table.", "Where is the train station?", "I'll call you tomorrow."]
+
+    results = [refine(Row(id=str(n), source=s, existing=None, origin=None), settings, connection)
+               for n, s in enumerate(sentences, 1)]
+
+    for result in results:
+        assert result.winner.text
+        assert not [f for f in result.flags if f.startswith("malformed")], result.flags
+        assert result.chrf is not None or result.notes == ["double-check skipped: every AI model wrote it"]
+    for kind, model, answer in live.answers:
+        assert answer.text, (kind, model)
+        assert answer.cost > 0, (kind, model)
+        if model != GOOGLE_TRANSLATE:
+            assert answer.input_tokens > 0 and answer.output_tokens > 0, (kind, model)
+    print(f"\nlive check: {len(live.answers)} calls, ${sum(r.cost for r in results):.4f}")
 
 
 def test_list_models_reads_openrouter_prices_and_settings():

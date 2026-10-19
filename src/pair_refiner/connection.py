@@ -32,7 +32,9 @@ GOOGLE_TRANSLATE = "google-translate"  # translates, can't judge
 @dataclass(frozen=True)
 class Answer:
     text: str  # a translation, or a judge's JSON exactly as it came back
-    cost: float  # USD, as the service reported it
+    cost: float  # USD, as the service reported it; 0 when it came from the cache
+    input_tokens: int = 0
+    output_tokens: int = 0  # thinking included
 
 
 @dataclass(frozen=True)
@@ -49,13 +51,16 @@ class Connection(Protocol):
     """Seam 2. Judges answer in JSON:
     judge:     {"scores": {"A": {"meaning": 1-5, "naturalness": 1-5}, ...}, "ranking": ["A", ...], "reason": "..."}
     top_judge: {"winner": "A", "reason": "..."}
+    `attempt` 2 is the one retry after a malformed answer: a different request, cached on its own.
     """
+
+    fingerprint: str  # changes whenever the way models are asked changes (prompts, settings), so the cache misses
 
     def translate(self, model: str, task: Task) -> Answer: ...
 
-    def judge(self, model: str, task: Task, candidates: dict[str, str]) -> Answer: ...
+    def judge(self, model: str, task: Task, candidates: dict[str, str], attempt: int = 1) -> Answer: ...
 
-    def top_judge(self, model: str, task: Task, candidates: dict[str, str]) -> Answer: ...
+    def top_judge(self, model: str, task: Task, candidates: dict[str, str], attempt: int = 1) -> Answer: ...
 
     def back_translate(self, model: str, text: str, source_lang: str, target_lang: str) -> Answer: ...
 

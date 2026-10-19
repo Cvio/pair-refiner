@@ -19,6 +19,7 @@ class StandIn:
     back: dict[str, str] = field(default_factory=dict)  # model -> its back-translation
     garbled: dict[str, list[str]] = field(default_factory=dict)  # model -> raw answers it gives before a good one
     calls: list[tuple] = field(default_factory=list)
+    fingerprint: str = "standin"
 
     def _answer(self, kind: str, model: str, good: str) -> Answer:
         queue = self.garbled.get(model, [])
@@ -28,7 +29,7 @@ class StandIn:
         self.calls.append(("translate", model, task))
         return self._answer("translate", model, self.translations[model])
 
-    def judge(self, model: str, task: Task, candidates: dict[str, str]) -> Answer:
+    def judge(self, model: str, task: Task, candidates: dict[str, str], attempt: int = 1) -> Answer:
         self.calls.append(("judge", model, task, dict(candidates)))
         scores = {label: self.panel[model][text] for label, text in candidates.items()}
         good = json.dumps({
@@ -38,7 +39,7 @@ class StandIn:
         })
         return self._answer("judge", model, good)
 
-    def top_judge(self, model: str, task: Task, candidates: dict[str, str]) -> Answer:
+    def top_judge(self, model: str, task: Task, candidates: dict[str, str], attempt: int = 1) -> Answer:
         self.calls.append(("top_judge", model, task, dict(candidates)))
         winner = next(label for label, text in candidates.items() if text == self.top_pick)
         return self._answer("top_judge", model, json.dumps({"winner": winner, "reason": "It reads best."}))

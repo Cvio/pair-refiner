@@ -58,6 +58,7 @@ class Result:
     replaced: bool = False  # the dataset's own translation (origin "unknown") lost
     back_translation: str | None = None  # the winner translated back into the source language
     chrf: float | None = None  # 0-100: how closely the back-translation matches the source
+    notes: list[str] = field(default_factory=list)  # worth knowing, not a warning
 
 
 DATASET = "dataset"  # the author of a dataset's own translation
@@ -83,14 +84,14 @@ def refine(row: Row, settings: RefineSettings, connection: Connection) -> Result
         calls.flags.append("panel disagreement")
     replaced = reference is not None and winner is not reference
     back, chrf = _back_translate(winner, row, settings, calls) if settings.back_translation else (None, None)
-    return Result(candidates, shortlist, winner, reason, calls.flags, calls.cost, replaced, back, chrf)
+    return Result(candidates, shortlist, winner, reason, calls.flags, calls.cost, replaced, back, chrf, calls.notes)
 
 
 class _Calls:
     """The connection, with the running cost and the flags raised so far."""
 
     def __init__(self, connection: Connection):
-        self.connection, self.cost, self.flags = connection, 0.0, []
+        self.connection, self.cost, self.flags, self.notes = connection, 0.0, [], []
 
     def __call__(self, kind: str, *args) -> str:
         answer = getattr(self.connection, kind)(*args)
@@ -121,7 +122,8 @@ def _panel(candidates: list[Candidate], settings: RefineSettings, task: Task, ca
     labelled = _blind(candidates, task, "panel")
     shown = {label: c.text for label, c in labelled.items()}
     for judge in settings.judges:
-        vote = _ask_twice(lambda: calls("judge", judge, task, shown), lambda raw: _panel_vote(raw, shown))
+        vote = _ask_twice(lambda attempt: calls("judge", judge, task, shown, attempt),
+                          lambda raw: _panel_vote(raw, shown))
         if vote is None:
             calls.flags.append(f"malformed judge answer: {judge}")
             continue
@@ -137,7 +139,8 @@ def _top_judge(shortlist: list[Candidate], settings: RefineSettings, task: Task,
     """The top judge's pick from the shortlist, blind with fresh labels, and its reason."""
     blind = _blind(shortlist, task, "top")
     shown = {label: c.text for label, c in blind.items()}
-    pick = _ask_twice(lambda: calls("top_judge", settings.top_judge, task, shown), lambda raw: _top_pick(raw, shown))
+    pick = _ask_twice(lambda attempt: calls("top_judge", settings.top_judge, task, shown, attempt),
+                      lambda raw: _top_pick(raw, shown))
     if pick is None:  # the panel's favourite wins (docs/adr/0002)
         calls.flags.append(f"malformed judge answer: {settings.top_judge}")
         return shortlist[0], None
@@ -152,7 +155,8 @@ def _back_translate(winner: Candidate, row: Row, settings: RefineSettings,
     """The winner translated back by the first AI translator that didn't write it (docs/adr/0002), and its chrF
     against the source. Flags the row when the chrF is below the threshold."""
     model = next((m for m in settings.translators if m != GOOGLE_TRANSLATE and m not in winner.authors), None)
-    if model is None:
+    if model is None:  # every AI model wrote it: that agreement is the check (docs/adr/0002)
+        calls.notes.append("double-check skipped: every AI model wrote it")
         return None, None
     back = persian.tidy_if_persian(
         calls("back_translate", model, winner.text, settings.target_lang, settings.source_lang), settings.source_lang)
@@ -164,8 +168,8 @@ def _back_translate(winner: Candidate, row: Row, settings: RefineSettings,
 
 def _ask_twice(ask, parse):
     """A malformed answer is asked for once more; None if it is malformed again."""
-    for _ in range(2):
-        parsed = parse(ask())
+    for attempt in (1, 2):
+        parsed = parse(ask(attempt))
         if parsed is not None:
             return parsed
     return None

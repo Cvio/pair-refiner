@@ -1,0 +1,111 @@
+"""Seam 2, for real: the only code that calls OpenRouter's chat models and Google Cloud Translation.
+Checked only by the live check (tests/test_live.py, run by hand). Keys are never printed or logged."""
+
+import hashlib
+import json
+import time
+import tomllib
+from pathlib import Path
+
+import httpx
+
+from pair_refiner import prompts
+from pair_refiner.connection import GOOGLE_TRANSLATE, OPENROUTER_API, Answer, Model, OpenRouter, Task
+
+GOOGLE_API = "https://translation.googleapis.com/language/translate/v2"
+GOOGLE_PRICE_PER_CHARACTER = 20 / 1_000_000  # USD (cloud.google.com/products/translate/pricing)
+MAX_OUTPUT_TOKENS = 4000  # thinking included; a sentence never needs more
+RETRY_WAITS = (2, 10, 30)  # seconds to wait after a rate limit or a server error, before giving up
+
+
+class LiveError(Exception):
+    """A service failed or answered in a way the tool can't use. The message never contains a key."""
+
+
+def load_keys(path: Path) -> dict:
+    if not path.exists():
+        raise LiveError(f"{path.name} not found. Copy keys.example.toml to keys.toml and put your keys in it "
+                        "(see the README).")
+    with open(path, "rb") as f:
+        return tomllib.load(f)
+
+
+class LiveConnection:
+    """OpenRouter for every AI model, Google Cloud Translation for google-translate. Temperature 0 where a model
+    accepts it, and each model's lowest reasoning effort (docs/adr/0001)."""
+
+    def __init__(self, keys: dict):
+        self._openrouter_key = keys["openrouter"]["api_key"]
+        self._google_key = keys["google"]["translate_api_key"]
+        self._models: dict[str, Model] = {m.id: m for m in OpenRouter().list_models()}
+        settings = {"temperature_when_accepted": 0, "effort": "lowest", "max_tokens": MAX_OUTPUT_TOKENS}
+        self.fingerprint = hashlib.sha256(
+            json.dumps([prompts.FINGERPRINT, settings, "google-nmt-v2"]).encode()).hexdigest()[:16]
+        self._http = httpx.Client(timeout=120)
+
+    def translate(self, model: str, task: Task) -> Answer:
+        if model == GOOGLE_TRANSLATE:
+            return self._google(task.text, task.source_lang, task.target_lang)
+        return self._chat(model, *prompts.translate(task))
+
+    def judge(self, model: str, task: Task, candidates: dict[str, str], attempt: int = 1) -> Answer:
+        return self._chat(model, *prompts.judge(task, candidates, attempt),
+                          schema=("judgement", prompts.judge_schema(list(candidates))))
+
+    def top_judge(self, model: str, task: Task, candidates: dict[str, str], attempt: int = 1) -> Answer:
+        return self._chat(model, *prompts.top_judge(task, candidates, attempt),
+                          schema=("pick", prompts.top_judge_schema(list(candidates))))
+
+    def back_translate(self, model: str, text: str, source_lang: str, target_lang: str) -> Answer:
+        if model == GOOGLE_TRANSLATE:
+            return self._google(text, source_lang, target_lang)
+        return self._chat(model, *prompts.back_translate(text, source_lang, target_lang))
+
+    def _chat(self, model: str, system: str, user: str, schema: tuple[str, dict] | None = None) -> Answer:
+        info = self._models.get(model)
+        if info is None:
+            raise LiveError(f"{model} is not in OpenRouter's model list.")
+        body: dict = {"model": model, "max_completion_tokens": MAX_OUTPUT_TOKENS,
+                      "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+        if info.accepts_temperature:
+            body["temperature"] = 0
+        if info.lowest_effort:
+            body["reasoning"] = {"effort": info.lowest_effort}
+        if schema:
+            name, json_schema = schema
+            body["response_format"] = {"type": "json_schema",
+                                       "json_schema": {"name": name, "strict": True, "schema": json_schema}}
+            body["provider"] = {"require_parameters": True}
+        reply = self._post(f"{OPENROUTER_API}/chat/completions", model, json=body,
+                           headers={"Authorization": f"Bearer {self._openrouter_key}",
+                                    "X-Title": "pair-refiner"})
+        usage = reply.get("usage") or {}
+        if usage.get("cost") is None:
+            raise LiveError(f"{model}: OpenRouter's answer had no cost.")
+        text = ((reply.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        return Answer(text.strip(), float(usage["cost"]), int(usage.get("prompt_tokens") or 0),
+                      int(usage.get("completion_tokens") or 0))
+
+    def _google(self, text: str, source_lang: str, target_lang: str) -> Answer:
+        reply = self._post(GOOGLE_API, GOOGLE_TRANSLATE, headers={"X-Goog-Api-Key": self._google_key},
+                           json={"q": text, "source": source_lang, "target": target_lang, "format": "text"})
+        translated = reply["data"]["translations"][0]["translatedText"]
+        return Answer(translated.strip(), len(text) * GOOGLE_PRICE_PER_CHARACTER)
+
+    def _post(self, url: str, who: str, **request) -> dict:
+        for wait in (*RETRY_WAITS, None):
+            try:
+                response = self._http.post(url, **request)
+            except httpx.TransportError as e:
+                status, detail = None, type(e).__name__
+            else:
+                if response.is_success:
+                    return response.json()
+                status, detail = response.status_code, response.text[:300]
+                if status not in (408, 429) and status < 500:
+                    break
+            if wait is None:
+                break
+            time.sleep(wait)
+        # The message names the service and status only: never the request, which holds a key.
+        raise LiveError(f"{who}: the call failed ({status or 'no connection'}): {detail}")

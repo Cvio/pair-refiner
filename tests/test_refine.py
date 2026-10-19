@@ -4,6 +4,7 @@ flags and the cost. The connection is the stand-in (conftest.py)."""
 import pytest
 from conftest import StandIn
 
+from pair_refiner.cache import CachedConnection
 from pair_refiner.dataset import Row
 from pair_refiner.refine import RefineSettings, refine
 
@@ -272,6 +273,52 @@ def test_translators_and_judges_all_see_the_previous_two_sentences_of_a_conversa
 
     tasks = [call[2] for call in standin.calls if call[0] in ("translate", "judge", "top_judge")]
     assert len(tasks) == 5 and all(t.context == ("Where is my book?", "Which one?") for t in tasks)
+
+
+def test_refining_again_through_the_cache_makes_no_calls_and_costs_nothing(tmp_path):
+    standin = StandIn(
+        translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+        panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+        top_pick=ON_TABLE,
+        back={"m/b": "The book is on the table."},
+        garbled={"m/d": ["Not JSON."]},  # m/d's first answer is malformed; its second is fine
+    )
+    cache_file = tmp_path / "answers.sqlite"
+
+    first = refine(BOOK, settings(back_translation=True), CachedConnection(standin, cache_file))
+    calls_made = len(standin.calls)
+    again = refine(BOOK, settings(back_translation=True), CachedConnection(standin, cache_file))  # as if restarted
+
+    assert len(standin.calls) == calls_made == 7  # 2 translations, 3 judge calls, top judge, back-translation
+    assert first.cost == pytest.approx(0.053)  # 0.002 + 0.03 + 0.02 + 0.001
+    assert again.cost == 0
+    assert (again.winner.text, again.flags, again.chrf) == (first.winner.text, first.flags, first.chrf)
+    assert {c.text: c.scores for c in again.candidates} == {c.text: c.scores for c in first.candidates}
+
+
+def test_changing_how_a_model_is_asked_misses_the_cache(tmp_path):
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE)
+    cache_file = tmp_path / "answers.sqlite"
+    refine(BOOK, settings(), CachedConnection(standin, cache_file))
+
+    standin.fingerprint = "prompts v2"  # e.g. a translation prompt was reworded
+    refine(BOOK, settings(), CachedConnection(standin, cache_file))
+
+    assert len(standin.calls) == 2 * 5
+
+
+def test_a_winner_written_by_every_ai_model_skips_the_double_check_with_a_note():
+    standin = StandIn(translations={"google-translate": ON_TABLE, "m/a": ON_TABLE, "m/b": ON_TABLE},
+                      panel={"m/a": {ON_TABLE: (5, 5)}, "m/b": {ON_TABLE: (5, 5)}}, top_pick=ON_TABLE)
+
+    result = refine(BOOK, settings(translators=["google-translate", "m/a", "m/b"], judges=["m/a", "m/b"],
+                                   top_judge="m/a", back_translation=True), standin)
+
+    assert "back_translate" not in [k for k, _ in standin.kinds()]
+    assert result.notes == ["double-check skipped: every AI model wrote it"]
+    assert "meaning may have changed" not in result.flags
 
 
 def test_back_translation_can_be_turned_off():
