@@ -79,6 +79,17 @@ def test_persian_digits_score_the_same_as_the_references_western_digits(tmp_path
     assert report.translator_chrf == {"m/a": pytest.approx(100.0)}
 
 
+def test_a_translator_that_refuses_a_sentence_scores_as_empty_for_it(tmp_path):
+    standin = StandIn(translations={"m/a": dict(zip(SOURCES, REFS)), "m/b": {**dict(zip(SOURCES, REFS)), SOURCES[1]: ""}},
+                      panel={"m/c": {r: (5, 5) for r in REFS}}, top_pick=set(REFS))
+    settings = RunSettings(translators=["m/a", "m/b"], judges=["m/c"], top_judge="m/c", back_translation=False)
+
+    report = evaluate(items(), EN_FA, settings, CachedConnection(standin, tmp_path / "c.sqlite"))
+
+    assert report.translator_chrf["m/a"] == pytest.approx(100.0)
+    assert report.translator_chrf["m/b"] < 100.0  # it gave nothing for sentence 2
+
+
 def test_the_recommended_threshold_best_separates_the_truly_bad_winners(tmp_path):
     standin = StandIn(
         translations={"m/a": dict(zip(SOURCES, REFS)), "m/b": dict(zip(SOURCES, JUNK))},

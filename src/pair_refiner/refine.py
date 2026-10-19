@@ -112,7 +112,11 @@ def _candidates(row: Row, settings: RefineSettings, task: Task, calls: _Calls) -
         return by_text[text]
 
     for model in settings.translators:
-        add(persian.tidy_if_persian(calls("translate", model, task), settings.target_lang), model)
+        text = persian.tidy_if_persian(calls("translate", model, task), settings.target_lang)
+        if text:
+            add(text, model)
+        else:  # a silent refusal: carry on without it (docs/adr/0002)
+            calls.notes.append(f"no answer from {model}")
     reference = add(row.existing, DATASET) if row.existing else None
     return list(by_text.values()), reference
 
@@ -122,10 +126,10 @@ def _panel(candidates: list[Candidate], settings: RefineSettings, task: Task, ca
     labelled = _blind(candidates, task, "panel")
     shown = {label: c.text for label, c in labelled.items()}
     for judge in settings.judges:
-        vote = _ask_twice(lambda attempt: calls("judge", judge, task, shown, attempt),
-                          lambda raw: _panel_vote(raw, shown))
+        vote, refused = _ask_twice(lambda attempt: calls("judge", judge, task, shown, attempt),
+                                   lambda raw: _panel_vote(raw, shown))
         if vote is None:
-            calls.flags.append(f"malformed judge answer: {judge}")
+            _no_vote(judge, refused, calls)
             continue
         for label, score in vote.items():
             candidate = labelled[label]
@@ -139,10 +143,10 @@ def _top_judge(shortlist: list[Candidate], settings: RefineSettings, task: Task,
     """The top judge's pick from the shortlist, blind with fresh labels, and its reason."""
     blind = _blind(shortlist, task, "top")
     shown = {label: c.text for label, c in blind.items()}
-    pick = _ask_twice(lambda attempt: calls("top_judge", settings.top_judge, task, shown, attempt),
-                      lambda raw: _top_pick(raw, shown))
+    pick, refused = _ask_twice(lambda attempt: calls("top_judge", settings.top_judge, task, shown, attempt),
+                               lambda raw: _top_pick(raw, shown))
     if pick is None:  # the panel's favourite wins (docs/adr/0002)
-        calls.flags.append(f"malformed judge answer: {settings.top_judge}")
+        _no_vote(settings.top_judge, refused, calls)
         return shortlist[0], None
     winner = blind[pick[0]]
     if settings.top_judge in winner.authors and winner is not shortlist[0]:
@@ -154,12 +158,19 @@ def _back_translate(winner: Candidate, row: Row, settings: RefineSettings,
                     calls: _Calls) -> tuple[str | None, float | None]:
     """The winner translated back by the first AI translator that didn't write it (docs/adr/0002), and its chrF
     against the source. Flags the row when the chrF is below the threshold."""
-    model = next((m for m in settings.translators if m != GOOGLE_TRANSLATE and m not in winner.authors), None)
-    if model is None:  # every AI model wrote it: that agreement is the check (docs/adr/0002)
+    checkers = [m for m in settings.translators if m != GOOGLE_TRANSLATE and m not in winner.authors]
+    if not checkers:  # every AI model wrote it: that agreement is the check (docs/adr/0002)
         calls.notes.append("double-check skipped: every AI model wrote it")
         return None, None
-    back = persian.tidy_if_persian(
-        calls("back_translate", model, winner.text, settings.target_lang, settings.source_lang), settings.source_lang)
+    for model in checkers:
+        back = persian.tidy_if_persian(
+            calls("back_translate", model, winner.text, settings.target_lang, settings.source_lang),
+            settings.source_lang)
+        if back:
+            break
+        calls.notes.append(f"no answer from {model}")  # a silent refusal: the next AI model checks instead
+    else:
+        return None, None
     chrf = sacrebleu.sentence_chrf(back, [row.source]).score
     if chrf < settings.chrf_threshold:
         calls.flags.append("meaning may have changed")
@@ -167,12 +178,23 @@ def _back_translate(winner: Candidate, row: Row, settings: RefineSettings,
 
 
 def _ask_twice(ask, parse):
-    """A malformed answer is asked for once more; None if it is malformed again."""
+    """A malformed answer is asked for once more. Returns (parsed or None, whether both answers were empty)."""
+    empty = True
     for attempt in (1, 2):
-        parsed = parse(ask(attempt))
+        raw = ask(attempt)
+        parsed = parse(raw)
         if parsed is not None:
-            return parsed
-    return None
+            return parsed, False
+        empty = empty and not raw.strip()
+    return None, empty
+
+
+def _no_vote(judge: str, refused: bool, calls: _Calls) -> None:
+    """A judge with no usable answer: a note if it silently refused (docs/adr/0002), a flag if it was malformed."""
+    if refused:
+        calls.notes.append(f"no answer from {judge}")
+    else:
+        calls.flags.append(f"malformed judge answer: {judge}")
 
 
 def _top_pick(raw: str, shown: dict[str, str]) -> tuple[str, str] | None:

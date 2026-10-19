@@ -15,5 +15,11 @@ Date: 2026-10-18. Decided with the user at the start of M3. BUILD.md left these 
 - **A candidate written by every judge** (common for short sentences): no outside judge is left, so
   its authors' own votes are used for it, and the row is flagged "scored only by its authors".
   Added during M3.
+- **A silent refusal** (found in M6: Meta's Muse Wonder answers some medical sentences with no text, no
+  usage and no cost, every time): the refining carries on without that model for that sentence (user's
+  choice). A translator's refusal leaves it with no candidate; a judge's refusal (twice) leaves no vote; a
+  top judge's refusal leaves the panel's favourite as winner; a double-check refusal passes to the next AI
+  model. Each gives the note "no answer from <model>", not a flag. In the test run, a refused sentence
+  counts as an empty translation for that translator.
 - **A top judge whose answer is malformed twice:** the panel's highest-scored candidate wins, and
   the row is flagged for malformed judge answers.

@@ -321,6 +321,54 @@ def test_a_winner_written_by_every_ai_model_skips_the_double_check_with_a_note()
     assert "meaning may have changed" not in result.flags
 
 
+def test_a_translator_that_answers_with_nothing_is_left_out_with_a_note():
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": ""},  # m/b refuses silently
+                      panel={judge: {ON_TABLE: (5, 5)} for judge in ("m/c", "m/d")}, top_pick=ON_TABLE)
+
+    result = refine(BOOK, settings(), standin)
+
+    assert [(c.text, c.authors) for c in result.candidates] == [(ON_TABLE, ("m/a",))]
+    assert result.notes == ["no answer from m/b"]
+    assert result.flags == []
+
+
+def test_a_judge_that_answers_with_nothing_twice_has_no_vote_and_a_note_not_a_flag():
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE, garbled={"m/d": ["", ""]})
+
+    result = refine(BOOK, settings(), standin)
+
+    assert {c.text: c.scores for c in result.candidates} == {ON_TABLE: {"m/c": (5, 5)}, OVER_TABLE: {"m/c": (3, 3)}}
+    assert result.notes == ["no answer from m/d"]
+    assert result.flags == []
+
+
+def test_a_top_judge_that_answers_with_nothing_leaves_the_panels_favourite_with_a_note():
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (3, 3), OVER_TABLE: (5, 5)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE, garbled={"m/e": ["", ""]})
+
+    result = refine(BOOK, settings(top_judge="m/e"), standin)
+
+    assert result.winner.text == OVER_TABLE
+    assert result.notes == ["no answer from m/e"]
+    assert result.flags == []
+
+
+def test_a_double_check_model_that_answers_with_nothing_passes_to_the_next_ai_model():
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE, "m/x": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE, back={"m/b": "", "m/x": "The book is on the table."})
+
+    result = refine(BOOK, settings(translators=["m/a", "m/b", "m/x"], back_translation=True), standin)
+
+    assert [k for k in standin.kinds() if k[0] == "back_translate"] == [("back_translate", "m/b"),
+                                                                       ("back_translate", "m/x")]
+    assert (result.back_translation, result.chrf) == ("The book is on the table.", pytest.approx(100.0))
+    assert result.notes == ["no answer from m/b"]
+
+
 def test_back_translation_can_be_turned_off():
     standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
                       panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},

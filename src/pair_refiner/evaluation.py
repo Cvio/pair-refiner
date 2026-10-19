@@ -53,7 +53,9 @@ def evaluate(items: list[Reference], dataset: DatasetSettings, settings: RunSett
 
     translator_chrf = {}
     for model in settings.translators:
-        texts = [_scoring(next(c.text for c in result.candidates if model in c.authors), target) for _, result in first]
+        # A sentence the translator refused counts as an empty translation.
+        texts = [_scoring(next((c.text for c in result.candidates if model in c.authors), ""), target)
+                 for _, result in first]
         translator_chrf[model] = sacrebleu.corpus_chrf(texts, [references]).score
 
     judge_accuracy = {judge: sum(_judge_was_right(judge, item, result, target) for item, result in first) / len(first)

@@ -76,15 +76,38 @@ class LiveConnection:
             body["response_format"] = {"type": "json_schema",
                                        "json_schema": {"name": name, "strict": True, "schema": json_schema}}
             body["provider"] = {"require_parameters": True}
-        reply = self._post(f"{OPENROUTER_API}/chat/completions", model, json=body,
-                           headers={"Authorization": f"Bearer {self._openrouter_key}",
-                                    "X-Title": "pair-refiner"})
+        headers = {"Authorization": f"Bearer {self._openrouter_key}", "X-Title": "pair-refiner"}
+        for wait in (*RETRY_WAITS, None):
+            reply = self._post(f"{OPENROUTER_API}/chat/completions", model, json=body, headers=headers)
+            if "error" not in reply and reply.get("choices"):
+                break
+            # An error delivered as an answer: nothing was produced, so asking again pays only once.
+            if wait is None:
+                raise LiveError(f"{model}: OpenRouter answered with an error: {str(reply.get('error'))[:300]}")
+            time.sleep(wait)
         usage = reply.get("usage") or {}
-        if usage.get("cost") is None:
-            raise LiveError(f"{model}: OpenRouter's answer had no cost.")
-        text = ((reply.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-        return Answer(text.strip(), float(usage["cost"]), int(usage.get("prompt_tokens") or 0),
+        cost = usage.get("cost")
+        text = (reply["choices"][0].get("message") or {}).get("content") or ""
+        if cost is None and not text.strip():
+            # A silent refusal (seen in M6: Muse Wonder on medical sentences): no text, no usage, nothing charged.
+            # Refining carries on without it (docs/adr/0002).
+            return Answer("", 0.0)
+        if cost is None:  # text but no cost: look the cost up by the answer's id rather than ask (and pay) again
+            cost = self._generation_cost(model, reply.get("id"), headers)
+        return Answer(text.strip(), float(cost), int(usage.get("prompt_tokens") or 0),
                       int(usage.get("completion_tokens") or 0))
+
+    def _generation_cost(self, model: str, generation_id: str | None, headers: dict) -> float:
+        """An answer's cost from OpenRouter's generation lookup, which can lag the answer by a few seconds."""
+        if generation_id:
+            for wait in (1, 3, 10, 30):
+                time.sleep(wait)
+                response = self._http.get(f"{OPENROUTER_API}/generation", params={"id": generation_id},
+                                          headers=headers)
+                cost = (response.json().get("data") or {}).get("total_cost") if response.is_success else None
+                if cost is not None:
+                    return cost
+        raise LiveError(f"{model}: OpenRouter's answer had no cost, and its generation lookup found none.")
 
     def _google(self, text: str, source_lang: str, target_lang: str) -> Answer:
         reply = self._post(GOOGLE_API, GOOGLE_TRANSLATE, headers={"X-Goog-Api-Key": self._google_key},
