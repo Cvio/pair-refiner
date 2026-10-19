@@ -1,6 +1,7 @@
 """Seam 2: the model connection. The only code that talks to OpenRouter or Google."""
 
 from dataclasses import dataclass
+from typing import Protocol
 
 import httpx
 
@@ -23,6 +24,40 @@ class Model:
     output_price: float  # USD per million tokens
     accepts_temperature: bool
     lowest_effort: str | None  # None: the model takes no reasoning setting
+
+
+GOOGLE_TRANSLATE = "google-translate"  # translates, can't judge
+
+
+@dataclass(frozen=True)
+class Answer:
+    text: str  # a translation, or a judge's JSON exactly as it came back
+    cost: float  # USD, as the service reported it
+
+
+@dataclass(frozen=True)
+class Task:
+    """What every call is about: one sentence and how it is to be translated."""
+    text: str
+    source_lang: str
+    target_lang: str
+    register: str  # "written" or "spoken"; only Persian uses it
+    context: tuple[str, ...] = ()  # the previous two original sentences of its conversation
+
+
+class Connection(Protocol):
+    """Seam 2. Judges answer in JSON:
+    judge:     {"scores": {"A": {"meaning": 1-5, "naturalness": 1-5}, ...}, "ranking": ["A", ...], "reason": "..."}
+    top_judge: {"winner": "A", "reason": "..."}
+    """
+
+    def translate(self, model: str, task: Task) -> Answer: ...
+
+    def judge(self, model: str, task: Task, candidates: dict[str, str]) -> Answer: ...
+
+    def top_judge(self, model: str, task: Task, candidates: dict[str, str]) -> Answer: ...
+
+    def back_translate(self, model: str, text: str, source_lang: str, target_lang: str) -> Answer: ...
 
 
 class OpenRouter:

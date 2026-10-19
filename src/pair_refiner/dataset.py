@@ -64,10 +64,10 @@ def read_dataset(path: Path, settings: DatasetSettings) -> list[Row]:
     rows, seen = [], set()
     earlier: dict[str, list[str]] = {}  # each conversation's sentences so far, duplicates included
     for n, record in records:
-        source = _tidy(record.get(source_col, ""), settings.source_lang)
+        source = persian.tidy_if_persian(record.get(source_col, ""), settings.source_lang)
         if not source:
             continue
-        existing = _tidy(record.get(target_col, ""), settings.target_lang) or None
+        existing = persian.tidy_if_persian(record.get(target_col, ""), settings.target_lang) or None
         context = ()
         if settings.conversation:
             before = earlier.setdefault(record.get(conversation_col, "").strip(), [])
@@ -79,11 +79,6 @@ def read_dataset(path: Path, settings: DatasetSettings) -> list[Row]:
             rows.append(Row(id=record.get("id", "").strip() or str(n), source=source, existing=existing,
                             origin=settings.origin if existing else None, context=context))
     return rows
-
-
-def _tidy(text: str, lang: str) -> str:
-    text = text.strip()
-    return persian.tidy(text) if lang == "fa" else text
 
 
 def _records(path: Path) -> tuple[list[str], list[tuple[int, dict[str, str]]]]:

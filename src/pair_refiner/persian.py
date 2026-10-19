@@ -117,6 +117,12 @@ _MI_APART = re.compile(r"(^| )(\u0646?\u0645\u06cc) ([" + _LETTERS + r"]+)")
 _OLD_AII = re.compile(r"ائی(?![" + _LETTERS + r"ئ])")
 
 
+def tidy_if_persian(text: str, lang: str) -> str:
+    """Any text in `lang`, stripped, and tidied if it is Persian."""
+    text = text.strip()
+    return tidy(text) if lang == "fa" else text
+
+
 def tidy(text: str) -> str:
     """Persian text with the look-alike letters, the digits and the half-spaces put right."""
     text = _OLD_AII.sub("ایی", text.translate(_TABLE))
