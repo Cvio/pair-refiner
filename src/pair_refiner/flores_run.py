@@ -26,7 +26,7 @@ ENGLISH = Path(r"D:\AI_Data\projects\model-converter\inputs\data\flores_plus\dev
 PERSIAN = REPO / "inputs" / "flores_plus" / "devtest" / "pes_Arab.jsonl"
 OUT = REPO / "runs" / "test-run"
 CACHE = REPO / "cache" / "answers.sqlite"
-SENTENCES, LIMIT, WORKERS = 200, 20.0, 8
+SENTENCES, LIMIT, WORKERS = 200, 20.0, 3  # 3 at a time stays under 20 requests a minute per model
 
 
 class Budget:

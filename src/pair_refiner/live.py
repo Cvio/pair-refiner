@@ -15,7 +15,21 @@ from pair_refiner.connection import GOOGLE_TRANSLATE, OPENROUTER_API, Answer, Mo
 GOOGLE_API = "https://translation.googleapis.com/language/translate/v2"
 GOOGLE_PRICE_PER_CHARACTER = 20 / 1_000_000  # USD (cloud.google.com/products/translate/pricing)
 MAX_OUTPUT_TOKENS = 4000  # thinking included; a sentence never needs more
-RETRY_WAITS = (2, 10, 30)  # seconds to wait after a rate limit or a server error, before giving up
+RETRY_WAITS = (2, 10, 30)  # seconds to wait after a server error or a dropped connection, before giving up
+RATE_LIMIT_TRIES = 6  # times to wait out a speed limit (429) before giving up
+
+
+def _retry_after(response: httpx.Response) -> float:
+    """Seconds to wait after a 429: the Retry-After header, else OpenRouter's X-RateLimit-Reset (a time in
+    milliseconds, in the header or in the body's metadata), else a minute. At least 1 second, at most 2 minutes."""
+    try:
+        if "retry-after" in response.headers:
+            return min(max(float(response.headers["retry-after"]), 1), 120)
+        reset = response.headers.get("x-ratelimit-reset") or \
+            response.json()["error"]["metadata"]["headers"]["X-RateLimit-Reset"]
+        return min(max(float(reset) / 1000 - time.time(), 1), 120)
+    except (ValueError, KeyError, TypeError):
+        return 60.0
 
 
 class LiveError(Exception):
@@ -116,7 +130,9 @@ class LiveConnection:
         return Answer(translated.strip(), len(text) * GOOGLE_PRICE_PER_CHARACTER)
 
     def _post(self, url: str, who: str, **request) -> dict:
-        for wait in (*RETRY_WAITS, None):
+        rate_limited = 0
+        waits = iter((*RETRY_WAITS, None))
+        while True:
             try:
                 response = self._http.post(url, **request)
             except httpx.TransportError as e:
@@ -125,8 +141,14 @@ class LiveConnection:
                 if response.is_success:
                     return response.json()
                 status, detail = response.status_code, response.text[:300]
+                if status == 429 and rate_limited < RATE_LIMIT_TRIES:
+                    # A speed limit (new accounts: 20 requests a minute per model): wait as long as asked.
+                    rate_limited += 1
+                    time.sleep(_retry_after(response))
+                    continue
                 if status not in (408, 429) and status < 500:
                     break
+            wait = next(waits)
             if wait is None:
                 break
             time.sleep(wait)
