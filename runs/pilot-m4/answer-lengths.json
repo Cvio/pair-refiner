@@ -1,0 +1,130 @@
+[
+ {
+  "kind": "back_translate",
+  "model": "anthropic/claude-opus-5.5",
+  "calls": 23,
+  "input_tokens": 90,
+  "output_tokens": 54,
+  "cost": 0.001435
+ },
+ {
+  "kind": "back_translate",
+  "model": "deepseek/deepseek-v4-pro-0813",
+  "calls": 1,
+  "input_tokens": 37,
+  "output_tokens": 5,
+  "cost": 3.4e-05
+ },
+ {
+  "kind": "back_translate",
+  "model": "google/gemini-4-argon",
+  "calls": 2,
+  "input_tokens": 71,
+  "output_tokens": 12,
+  "cost": 0.000257
+ },
+ {
+  "kind": "back_translate",
+  "model": "openai/gpt-6.1-sol",
+  "calls": 13,
+  "input_tokens": 61,
+  "output_tokens": 72,
+  "cost": 0.000845
+ },
+ {
+  "kind": "judge",
+  "model": "anthropic/claude-opus-5.5",
+  "calls": 40,
+  "input_tokens": 1517,
+  "output_tokens": 240,
+  "cost": 0.010865
+ },
+ {
+  "kind": "judge",
+  "model": "deepseek/deepseek-v4-pro-0813",
+  "calls": 40,
+  "input_tokens": 352,
+  "output_tokens": 226,
+  "cost": 0.000483
+ },
+ {
+  "kind": "judge",
+  "model": "google/gemini-4-argon",
+  "calls": 40,
+  "input_tokens": 1248,
+  "output_tokens": 193,
+  "cost": 0.004424
+ },
+ {
+  "kind": "judge",
+  "model": "meta/muse-wonder",
+  "calls": 40,
+  "input_tokens": 353,
+  "output_tokens": 394,
+  "cost": 0.009193
+ },
+ {
+  "kind": "judge",
+  "model": "openai/gpt-6.1-sol",
+  "calls": 40,
+  "input_tokens": 529,
+  "output_tokens": 251,
+  "cost": 0.003563
+ },
+ {
+  "kind": "top_judge",
+  "model": "anthropic/claude-opus-5.5",
+  "calls": 40,
+  "input_tokens": 538,
+  "output_tokens": 98,
+  "cost": 0.004105
+ },
+ {
+  "kind": "translate",
+  "model": "anthropic/claude-opus-5.5",
+  "calls": 40,
+  "input_tokens": 136,
+  "output_tokens": 79,
+  "cost": 0.002114
+ },
+ {
+  "kind": "translate",
+  "model": "deepseek/deepseek-v4-pro-0813",
+  "calls": 40,
+  "input_tokens": 84,
+  "output_tokens": 23,
+  "cost": 9.4e-05
+ },
+ {
+  "kind": "translate",
+  "model": "google-translate",
+  "calls": 40,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "cost": 0.001389
+ },
+ {
+  "kind": "translate",
+  "model": "google/gemini-4-argon",
+  "calls": 40,
+  "input_tokens": 115,
+  "output_tokens": 24,
+  "cost": 0.000474
+ },
+ {
+  "kind": "translate",
+  "model": "meta/muse-wonder",
+  "calls": 40,
+  "input_tokens": 103,
+  "output_tokens": 157,
+  "cost": 0.003552
+ },
+ {
+  "kind": "translate",
+  "model": "openai/gpt-6.1-sol",
+  "calls": 40,
+  "input_tokens": 87,
+  "output_tokens": 85,
+  "cost": 0.001019
+ }
+]
