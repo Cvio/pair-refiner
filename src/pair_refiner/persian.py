@@ -7,6 +7,7 @@ copyright (c) 2013 Alireza Nourian). What it does:
 
 - Arabic look-alike letters become the Persian ones (ي -> ی, ك -> ک, and the rest of
   hazm's table), and ۀ becomes هٔ;
+- invisible direction marks (U+200E, U+200F, U+061C, U+202A-U+202E, U+2066-U+2069) are removed;
 - Arabic-Indic digits (٠-٩) become Persian digits (۰-۹); Western digits stay;
 - the half-space (ZWNJ, U+200C) is put back where a plain space was written: after the prefix
   mi- / nemi-, before -ha / -haye, -tar / -tarin, -gar / -gari, and before the endings
@@ -88,6 +89,8 @@ _LETTERS = "\u0622\u0627\u0628\u067e\u062a\u062b\u062c\u0686\u062d\u062e\u062f\u
 # hazm's EXTRA_SPACE_PATTERNS, the ones about spaces, ZWNJ and tatweel.
 _TIDY = [(re.compile(p), r) for p, r in [
     (r"[\u0640\r]", ""),  # tatweel (the stretching line), carriage returns
+    # Invisible direction marks (not in volis; MIZAN has them): LRM, RLM, ALM, embeddings, overrides, isolates.
+    (r"[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]", ""),
     (r" {2,}", " "),
     (r"\u200c{2,}", ZWNJ),
     (r"\u200c+ ", " "),

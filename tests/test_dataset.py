@@ -201,6 +201,23 @@ def test_the_older_spelling_of_haii_and_aii_becomes_the_modern_one(tmp_path):
     ]
 
 
+def test_invisible_direction_marks_are_removed_from_persian(tmp_path):
+    # As in MIZAN row 17: a pop-directional-formatting mark (U+202C) after a word and at the end;
+    # also a right-to-left mark (U+200F) and an isolate (U+2067 ... U+2069).
+    path = write(tmp_path, "fa.csv", (
+        "source\n"
+        "که‬ تهدیدشان می‌کند. ‬\n"
+        "‏⁧سلام⁩\n"
+    ))
+
+    rows = read_dataset(path, DatasetSettings(source_lang="fa", target_lang="en"))
+
+    assert [r.source for r in rows] == [
+        "که تهدیدشان می‌کند.",  # که تهدیدشان می‌کند.
+        "سلام",  # سلام
+    ]
+
+
 def test_a_settings_file_names_the_dataset_and_its_settings(tmp_path):
     write(tmp_path, "data.csv", "source,target\nThank you.,ممنونم.\n")
     settings_file = write(tmp_path, "data.toml", (
