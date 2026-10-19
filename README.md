@@ -4,11 +4,11 @@ pair-refiner makes **training pairs for a translation LoRA**, English ↔ Persia
 of sentences, has several AI models translate each one, has the models judge each other's
 translations without knowing who wrote what, and keeps the best one.
 
-> **Status (19 October 2026): milestones M0–M4 of 8 are done.** The tool can read datasets, pick
-> the best translation of a sentence with real models, and run a 20-sentence pilot. It **can't yet**
-> run a whole dataset, stop at a spending limit, write the final output files (`pairs.jsonl` etc.),
-> or show a dashboard. Those come in M5–M7, and the full guide in M8. The plan is in
-> [BUILD.md](BUILD.md).
+> **Status (19 October 2026): milestones M0–M5 of 8 are done.** The tool can read datasets, run a
+> whole dataset (or its first N sentences) with real models within a spending limit, pick up after
+> being stopped, estimate the cost first, and write the output files. It **doesn't yet** have its
+> tested defaults for the head judge and the double-check threshold (M6), or a dashboard (M7). The
+> full guide comes in M8. The plan is in [BUILD.md](BUILD.md).
 
 ---
 
@@ -179,6 +179,45 @@ In the pilot, the head judge (Opus 5.5) and the double-check threshold (chrF 40)
 **placeholders**. Milestone M6 measures which head judge and threshold work best. At 40 the
 "meaning may have changed" flag fires too often, so ignore it for now.
 
+### Run a dataset
+
+First, **estimate the cost**. This spends nothing. Here it's for the first 30 sentences of the MIZAN
+sample:
+
+```bash
+uv run python -m pair_refiner.cli datasets\mizan-sample-2000.toml --name mizan-30 --sentences 30 --estimate
+```
+
+The estimate uses today's prices and how long the models' answers really were in earlier runs.
+Sentences already in the cache cost nothing, so the real cost can be lower.
+
+Then **run it, with a spending limit in dollars**:
+
+```bash
+uv run python -m pair_refiner.cli datasets\mizan-sample-2000.toml --name mizan-30 --sentences 30 --limit 2
+```
+
+- `--name` names the run. Its files go to `runs\mizan-30\`.
+- `--sentences` is optional. Without it, the whole dataset is run.
+- `--limit` is the most the run may spend. Before each sentence the tool estimates its cost, and if
+  that would pass the limit, it stops cleanly and writes what it has done so far.
+- `--register written`, `spoken` or `both` overrides the dataset's setting (Persian only).
+- **To pick up a stopped run** (stopped by the limit, by Ctrl+C, or by a crash), run the same
+  command again, with a higher `--limit` if it stopped there. Answers already paid for come from the
+  cache, and the limit counts what the run spent before.
+
+The run writes to `runs\<name>\`:
+
+| File | What's in it |
+|---|---|
+| `pairs.jsonl` | **the training pairs**: one line per sentence with `source`, `target`, both languages, `register`, `author` (a list of every model that wrote the winning text; `dataset` means the file's own translation) and `id` |
+| `candidates.csv` | every candidate translation, best first, with every judge's scores (a vote a judge gave its own model's translation is shown as `5 (own)` and not counted), the winner, the head judge's reason, the double-check, chrF, whether the dataset's translation was replaced, and the cost on the winner's row |
+| `flags.csv` | one row per flag: the sentence, its winner, and why |
+| `run.json` | the settings, totals, cost and time taken |
+| `spending.log` | every paid answer's cost, so a resumed run knows what was spent |
+
+The CSV files open in Excel.
+
 ---
 
 ## Datasets
@@ -237,9 +276,6 @@ Files saved by Excel (UTF-8 with a BOM) work as they are.
 
 ## Still to come
 
-- **M5:** whole runs with a spending limit, picking up after an interruption without paying again,
-  a cost estimate before every run, and the output files: `pairs.jsonl` (the training pairs),
-  `candidates.csv`, `flags.csv` and `run.json`.
 - **M6:** a test run on FLORES+ (sentences with professional translations) to choose the head judge
   and the double-check threshold, and to measure whether the whole panel beats the single best
   model.
