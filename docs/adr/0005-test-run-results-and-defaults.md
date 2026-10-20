@@ -32,5 +32,12 @@ the user decided on the numbers.
   candidates, e.g. a dataset's own translation. A single candidate wins without any judge being asked.
 - **Double-check:** on for English→Persian, threshold 49.9, done by GPT-6.1 Sol (when no other AI translator is
   available, the first judge that didn't write the winner checks it). Off for Persian→English.
+- **Amended 2026-10-20 (M8):** Google Translate can't be told written or spoken: the example dataset's
+  "Could you speak a little more slowly, please?", asked for in written Persian, came back colloquial.
+  So English→Persian now has **two translators, Google Translate and Gemini 4 Argon** (the best AI model on
+  FLORES+, 53.4), and GPT-6.1 Sol judges between them, told which register is wanted and that a candidate in
+  the wrong one scores 2 at most for naturalness (user's choice). A live check confirms the judge prefers
+  the asked-for register both ways. About $0.004 a sentence on the example. Prompts now have one
+  fingerprint per kind of request, so rewording the judges' instructions re-asks only the judges.
 - The panel stays in `defaults.toml` as `[panel]`, so the test run can be repeated, e.g. once Meta's block is
   lifted, or by a Persian reader with the spot-check page (runs\spot-check\).

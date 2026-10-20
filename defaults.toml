@@ -9,10 +9,13 @@
 # FLORES+ medical sentences. Put it back only once the block is lifted.
 
 [directions.en-fa]
-translators = ["google-translate"]           # chrF 58.1 on FLORES+, the best of all
+# Google Translate: chrF 58.1 on FLORES+, the best of all, but it can't be told written or spoken (seen in M8).
+# Gemini 4 Argon: the best AI model on FLORES+ (53.4), and it follows the register. GPT-6.1 Sol judges
+# between them with the register in mind (2026-10-20, user's choice; docs/adr/0005).
+translators = ["google-translate", "google/gemini-4-argon"]
 judges = ["openai/gpt-6.1-sol"]
 top_judge = "openai/gpt-6.1-sol"
-back_translation = true                      # done by GPT-6.1 Sol, since Google Translate is the only translator
+back_translation = true                      # by Gemini when Google wins, by GPT-6.1 Sol when Gemini wins
 chrf_threshold = 49.9                        # flagged 6% of FLORES+ sentences
 
 [directions.fa-en]

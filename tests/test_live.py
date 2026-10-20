@@ -1,6 +1,7 @@
 """Seam 8: the live check. Talks to the real services; run by hand with `uv run pytest -m live`.
 The refining check costs about $0.20."""
 
+import json
 import re
 import tomllib
 from pathlib import Path
@@ -8,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from pair_refiner.cache import CachedConnection
-from pair_refiner.connection import GOOGLE_TRANSLATE, OpenRouter
+from pair_refiner.connection import GOOGLE_TRANSLATE, OpenRouter, Task
 from pair_refiner.dataset import Row
 from pair_refiner.live import LiveConnection, load_keys
 from pair_refiner.refine import RefineSettings, refine
@@ -21,7 +22,8 @@ class Recording:
     """Passes calls to the live connection and keeps every answer, to check its shape."""
 
     def __init__(self, connection):
-        self.connection, self.fingerprint, self.answers = connection, connection.fingerprint, []
+        self.connection, self.answers = connection, []
+        self.fingerprint_for = connection.fingerprint_for
 
     def __getattr__(self, kind):
         def call(model, *args):
@@ -56,6 +58,22 @@ def test_three_real_sentences_have_the_shape_the_standin_assumes(tmp_path):
         if model != GOOGLE_TRANSLATE:
             assert answer.input_tokens > 0 and answer.output_tokens > 0, (kind, model)
     print(f"\nlive check: {len(live.answers)} calls, ${sum(r.cost for r in results):.4f}")
+
+
+FORMAL = "ممکن است لطفاً کمی آهسته‌تر صحبت کنید؟"  # ممکن است لطفاً کمی آهسته‌تر صحبت کنید؟
+CASUAL = "میشه لطفا یه کم آروم‌تر صحبت کنی؟"  # میشه لطفا یه کم آروم‌تر صحبت کنی؟ (Google's, M8)
+
+
+@pytest.mark.parametrize("register, wanted", [("written", "A"), ("spoken", "B")])
+def test_the_judge_prefers_the_register_it_was_asked_for(register, wanted):
+    task = Task("Could you speak a little more slowly, please?", "en", "fa", register)
+    live = LiveConnection(load_keys(REPO / "keys.toml"))
+
+    answer = live.judge("openai/gpt-6.1-sol", task, {"A": FORMAL, "B": CASUAL})
+
+    scores = json.loads(answer.text)["scores"]
+    other = "B" if wanted == "A" else "A"
+    assert scores[wanted]["naturalness"] > scores[other]["naturalness"], answer.text
 
 
 def test_balance_reads_the_openrouter_credits_with_the_management_key():

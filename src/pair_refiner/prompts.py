@@ -1,9 +1,8 @@
-"""The instructions the models receive. Changing anything here changes the connection's fingerprint, so the
-cache asks again instead of reusing answers to the old wording."""
+"""The instructions the models receive. Each kind of request has its own fingerprint, made from exactly the
+wording it uses: rewording the judges' instructions re-asks the judges, not the translators."""
 
 import hashlib
 import inspect
-import sys
 
 from pair_refiner.connection import Task
 
@@ -16,27 +15,46 @@ REGISTERS = {
               "به خانه می‌روم).",
 }
 
+# What the judges are told about the register: which one is wanted, and that the wrong one loses.
+JUDGE_REGISTERS = {
+    "written": "The translation must be standard, formal written Persian, as in a published book. A candidate in "
+               "colloquial spoken Persian (for example می‌رم خونه instead of "
+               "به خانه می‌روم) is in the wrong register: "
+               "give it a naturalness score of 2 at most.",
+    "spoken": "The translation must be everyday colloquial spoken Persian, as people actually talk (for example "
+              "می‌رم خونه, not "
+              "به خانه می‌روم). A candidate in formal "
+              "written Persian is in the wrong register: give it a naturalness score of 2 at most.",
+}
+
 PERSIAN_SPELLING = "Use standard Persian spelling, with the half-space (ZWNJ) where it belongs."
 
 RETRY = "Your previous answer was not valid JSON in the required format. Answer again with only that JSON."
 
 
-def _language_notes(task: Task) -> str:
-    notes = []
-    if task.target_lang == "fa":
-        notes += [REGISTERS[task.register], PERSIAN_SPELLING]
-    if task.context:
-        lines = "\n".join(f"- {line}" for line in task.context)
-        notes.append("The sentence comes from a conversation. The lines just before it were (for context "
-                     f"only; don't translate them):\n{lines}")
-    return "\n".join(notes)
+def _context_note(task: Task) -> list[str]:
+    if not task.context:
+        return []
+    lines = "\n".join(f"- {line}" for line in task.context)
+    return ["The sentence comes from a conversation. The lines just before it were (for context only; don't "
+            f"translate them):\n{lines}"]
+
+
+def _translation_notes(task: Task) -> str:
+    notes = [REGISTERS[task.register], PERSIAN_SPELLING] if task.target_lang == "fa" else []
+    return "\n".join(notes + _context_note(task))
+
+
+def _judging_notes(task: Task) -> str:
+    notes = [JUDGE_REGISTERS[task.register]] if task.target_lang == "fa" else []
+    return "\n".join(notes + _context_note(task))
 
 
 def translate(task: Task) -> tuple[str, str]:
     """(system, user) messages for a translation."""
     source, target = LANGUAGES[task.source_lang], LANGUAGES[task.target_lang]
     system = (f"You are a professional {source}-to-{target} translator. Translate the sentence the user gives "
-              f"into {target}, keeping its exact meaning and tone. {_language_notes(task)}\n"
+              f"into {target}, keeping its exact meaning and tone. {_translation_notes(task)}\n"
               "Reply with the translation only: no quotation marks, notes or explanations.")
     return system, task.text
 
@@ -45,7 +63,7 @@ def judge(task: Task, candidates: dict[str, str], attempt: int) -> tuple[str, st
     """(system, user) messages for a panel judge."""
     source, target = LANGUAGES[task.source_lang], LANGUAGES[task.target_lang]
     system = (f"You are an expert judge of {source}-to-{target} translation. You will see a {source} sentence and "
-              f"several candidate {target} translations labelled with letters. {_language_notes(task)}\n"
+              f"several candidate {target} translations labelled with letters. {_judging_notes(task)}\n"
               "Score every candidate:\n"
               "- meaning, 1 to 5: 5 = exactly the meaning of the source, nothing added, lost or changed;\n"
               f"- naturalness, 1 to 5: 5 = exactly what a fluent native speaker would write.\n"
@@ -61,9 +79,10 @@ def top_judge(task: Task, candidates: dict[str, str], attempt: int) -> tuple[str
     source, target = LANGUAGES[task.source_lang], LANGUAGES[task.target_lang]
     system = (f"You are the final judge of {source}-to-{target} translation. You will see a {source} sentence "
               f"and a shortlist of candidate {target} translations labelled with letters. "
-              f"{_language_notes(task)}\n"
-              "Pick the single best translation: first exact meaning, then naturalness. Give a one-sentence reason, "
-              "written in English.\n"
+              f"{_judging_notes(task)}\n"
+              "Pick the single best translation: first exact meaning, then naturalness. A candidate in the wrong "
+              "register should not win unless every candidate is in the wrong register. Give a one-sentence "
+              "reason, written in English.\n"
               'Answer only with JSON: {"winner": "A", "reason": "..."}')
     return system, _candidates_message(task, candidates, attempt)
 
@@ -102,5 +121,16 @@ def top_judge_schema(labels: list[str]) -> dict:
             "properties": {"winner": {"type": "string", "enum": labels}, "reason": {"type": "string"}}}
 
 
-# Every word of this file counts: any change gives a new fingerprint.
-FINGERPRINT = hashlib.sha256(inspect.getsource(sys.modules[__name__]).encode()).hexdigest()[:16]
+def _fingerprint(*parts) -> str:
+    """A short hash of exactly these functions' code and these constants' values."""
+    text = "\n".join(inspect.getsource(p) if callable(p) else repr(p) for p in parts)
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+_JUDGING = (_judging_notes, _context_note, JUDGE_REGISTERS, LANGUAGES, _candidates_message, RETRY)
+FINGERPRINTS = {
+    "translate": _fingerprint(translate, _translation_notes, _context_note, REGISTERS, PERSIAN_SPELLING, LANGUAGES),
+    "judge": _fingerprint(judge, judge_schema, *_JUDGING),
+    "top_judge": _fingerprint(top_judge, top_judge_schema, *_JUDGING),
+    "back_translate": _fingerprint(back_translate, LANGUAGES),
+}

@@ -20,6 +20,10 @@ class StandIn:
     garbled: dict[str, list[str]] = field(default_factory=dict)  # model -> raw answers it gives before a good one
     calls: list[tuple] = field(default_factory=list)  # answered calls only
     fingerprint: str = "standin"
+    fingerprints: dict[str, str] = field(default_factory=dict)  # per kind of request; overrides `fingerprint`
+
+    def fingerprint_for(self, kind: str) -> str:
+        return self.fingerprints.get(kind, self.fingerprint)
     fail_after: int | None = None  # the connection is lost once this many calls have been answered
     balance_left: float | None = 10.0  # the OpenRouter balance; None: no management key
     models: list = field(default_factory=list)  # what list_models returns

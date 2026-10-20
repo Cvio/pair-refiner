@@ -36,7 +36,8 @@ class Budget:
     """The live connection, refusing every call once LIMIT has been spent by this test run."""
 
     def __init__(self, connection, limit: float):
-        self.connection, self.fingerprint, self.limit, self.spent = connection, connection.fingerprint, limit, 0.0
+        self.connection, self.limit, self.spent = connection, limit, 0.0
+        self.fingerprint_for = connection.fingerprint_for
         self.lock = threading.Lock()
 
     def __getattr__(self, kind):

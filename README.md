@@ -276,15 +276,17 @@ dashboard's **Models** page shows its scores.
 ## 10. How it picks a translation
 
 **What the test run found, and the defaults.** On FLORES+, no panel of several models beat the best
-single model, in either direction. So by default each direction uses its best single translator:
+single model, in either direction. So the defaults are small:
 
-| Direction | Translator | Checked by |
+| Direction | Translators | Checked by |
 |---|---|---|
-| English → Persian | **Google Translate** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second translation to choose between; double-check on |
-| Persian → English | **Claude Opus 5.5** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second translation to choose between; double-check off |
+| English → Persian | **Google Translate** (the closest to the professional translations) and **Gemini 4 Argon** (the best AI model, and it follows written or spoken) | GPT-6.1 Sol picks between them with the register in mind; double-check on |
+| Persian → English | **Claude Opus 5.5** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second translation to choose between (your file's own, for example); double-check off |
 
-A second translation is your file's own, for example. With only the model's translation, no judge
-is needed, and a sentence costs well under a cent. The settings are in [defaults.toml](defaults.toml),
+Why two for English → Persian: Google Translate can't be told written or spoken, so on its own it
+gives a mix. The judge is told which register you asked for, and a translation in the wrong one
+loses. A sentence costs about half a cent this way. With only one translation to consider, no judge
+is asked, and a sentence costs well under a cent. The settings are in [defaults.toml](defaults.toml),
 and the numbers and reasons are in [docs/adr/0005](docs/adr/0005-test-run-results-and-defaults.md).
 In the dashboard you can tick more translators and judges for any run.
 

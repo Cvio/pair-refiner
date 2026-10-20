@@ -54,7 +54,10 @@ class Connection(Protocol):
     `attempt` 2 is the one retry after a malformed answer: a different request, cached on its own.
     """
 
-    fingerprint: str  # changes whenever the way models are asked changes (prompts, settings), so the cache misses
+    def fingerprint_for(self, kind: str) -> str:
+        """Changes whenever the way this kind of request is asked changes (its prompt, its settings), so the cache
+        asks again. Each kind has its own, so rewording one doesn't re-ask the others."""
+        ...
 
     def translate(self, model: str, task: Task) -> Answer: ...
 

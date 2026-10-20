@@ -27,13 +27,15 @@ class CachedConnection:
 
     def __init__(self, connection: Connection, path: Path):
         self.connection = connection
-        self.fingerprint = connection.fingerprint
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, check_same_thread=False, timeout=60)
         self.lock = threading.Lock()  # sentences may be refined in parallel
         self.db.execute("""CREATE TABLE IF NOT EXISTS answers (
             key TEXT PRIMARY KEY, kind TEXT, model TEXT, text TEXT, cost REAL,
             input_tokens INTEGER, output_tokens INTEGER, stored TEXT DEFAULT CURRENT_TIMESTAMP)""")
+
+    def fingerprint_for(self, kind: str) -> str:
+        return self.connection.fingerprint_for(kind)
 
     def translate(self, model: str, task: Task) -> Answer:
         return self._ask("translate", model, task)
@@ -48,7 +50,7 @@ class CachedConnection:
         return self._ask("back_translate", model, text, source_lang, target_lang)
 
     def _ask(self, kind: str, model: str, *args) -> Answer:
-        request = [self.connection.fingerprint, kind, model,
+        request = [self.connection.fingerprint_for(kind), kind, model,
                    *(dataclasses.asdict(a) if isinstance(a, Task) else a for a in args)]
         key = hashlib.sha256(json.dumps(request, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
         with self.lock:

@@ -94,7 +94,8 @@ class _Ledger:
     a resumed run knows what was spent before it stopped. Cached answers cost nothing and aren't written."""
 
     def __init__(self, connection: Connection, path: Path):
-        self.connection, self.fingerprint, self.path = connection, connection.fingerprint, path
+        self.connection, self.path = connection, path
+        self.fingerprint_for = connection.fingerprint_for
         path.parent.mkdir(parents=True, exist_ok=True)
         self.spent = sum(float(line) for line in path.read_text().split()) if path.exists() else 0.0
 

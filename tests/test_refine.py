@@ -394,6 +394,20 @@ def test_with_no_other_ai_translator_the_first_judge_that_didnt_write_it_double_
     assert result.notes == []
 
 
+def test_rewording_one_kind_of_request_re_asks_only_that_kind(tmp_path):
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE)
+    standin.fingerprints = {"translate": "t1", "judge": "j1", "top_judge": "tj1", "back_translate": "b1"}
+    cache_file = tmp_path / "answers.sqlite"
+    refine(BOOK, settings(), CachedConnection(standin, cache_file))
+
+    standin.fingerprints["judge"] = "j2"  # the panel judges' instructions were reworded
+    refine(BOOK, settings(), CachedConnection(standin, cache_file))
+
+    assert standin.kinds()[5:] == [("judge", "m/c"), ("judge", "m/d")]
+
+
 def test_back_translation_can_be_turned_off():
     standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
                       panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},

@@ -53,10 +53,13 @@ class LiveConnection:
         self._management_key = keys["openrouter"].get("management_key", "")
         self._google_key = keys["google"]["translate_api_key"]
         self._models: dict[str, Model] = {m.id: m for m in OpenRouter().list_models()}
-        settings = {"temperature_when_accepted": 0, "effort": "lowest", "max_tokens": MAX_OUTPUT_TOKENS}
-        self.fingerprint = hashlib.sha256(
-            json.dumps([prompts.FINGERPRINT, settings, "google-nmt-v2"]).encode()).hexdigest()[:16]
         self._http = httpx.Client(timeout=120)
+
+    def fingerprint_for(self, kind: str) -> str:
+        """The prompt this kind of request uses, and the settings every request is sent with."""
+        settings = {"temperature_when_accepted": 0, "effort": "lowest", "max_tokens": MAX_OUTPUT_TOKENS,
+                    "google": "nmt-v2"}
+        return hashlib.sha256(json.dumps([prompts.FINGERPRINTS[kind], settings]).encode()).hexdigest()[:16]
 
     def list_models(self) -> list[Model]:
         return list(self._models.values())
