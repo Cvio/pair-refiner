@@ -1,327 +1,352 @@
 # pair-refiner
 
-pair-refiner makes **training pairs for a translation LoRA**, English ↔ Persian. It takes a dataset
-of sentences, has several AI models translate each one, has the models judge each other's
-translations without knowing who wrote what, and keeps the best one.
+pair-refiner makes **training pairs for a translation LoRA**, English ↔ Persian. You give it a file
+of sentences. It has AI models translate each one, checks the translations, and writes out the best
+one for each sentence as a pair you can train on. A LoRA is a small add-on that teaches a translation
+model to translate more like your examples.
 
-> **Status (20 October 2026): milestones M0–M7 of 8 are done.** The tool can read datasets, run a
-> whole dataset (or its first N sentences) with real models within a spending limit, pick up after
-> being stopped, estimate the cost first, and write the output files, all from a dashboard in your
-> browser. Its defaults come from a measured test run (M6, below). The full guide comes in M8. The
-> plan is in [BUILD.md](BUILD.md).
+This guide takes you from nothing to training pairs, step by step. Run each command in
+**PowerShell**, one at a time, and wait for it to finish before the next.
 
-## The dashboard
+**Contents**
 
-One command starts it and opens it in your browser:
-
-```bash
-uv run pair-refiner
-```
-
-It runs on your computer only (`http://127.0.0.1:8765`): nothing is reachable from other machines.
-Close the PowerShell window to stop it. A run that's working stops too, and picks up from the cache
-when you start it again with the same name.
-
-- **Runs:** every run, its status, how far it got, its flags and its cost.
-- **New run:** pick a dataset, the models, the judges and the checks (the defaults for the
-  dataset's direction are ticked), a sentence limit and a spending limit. **Estimate** first (it
-  spends nothing), then **Start**.
-- **One run:** live progress, what it has spent against its limit, and the flags. Click a sentence
-  to see every candidate, every judge's scores, and the reasons.
-- **Models:** the models for each direction, today's prices, and their test-run scores.
-- At the top of every page: your **OpenRouter balance** and **Google's spend this month**. Google
-  has no balance to ask for, so the tool counts its own Google spend, at $20 per million characters,
-  without assuming the free monthly allowance. The balance needs a **management key** in
-  `keys.toml`. Make one on OpenRouter's [Management API Keys](https://openrouter.ai/settings/management-keys)
-  page: click Create New Key, then paste it on the `management_key` line. It can't run models or
-  spend credits; the tool only uses it to read the balance.
-
-## What the test run found, and the defaults
-
-On FLORES+, 200 sentences with professional translations in each direction, **no panel of models
-beat the best single model**. So by default each direction uses its best single translator:
-
-| Direction | Translator | Checked by |
-|---|---|---|
-| English → Persian | **Google Translate** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second candidate to choose between; double-check on (threshold 49.9) |
-| Persian → English | **Claude Opus 5.5** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second candidate; double-check off |
-
-A "second candidate" is, for example, the dataset's own translation, as in MIZAN. With only the
-model's translation, nobody needs to judge. That makes a sentence cost well under a cent. All of this
-lives in [defaults.toml](defaults.toml), which also keeps the full panel as `[panel]`. The numbers
-and the reasoning are in [docs/adr/0005](docs/adr/0005-test-run-results-and-defaults.md).
-
-**Meta's models are switched off.** During the test run, Meta blocked this account for "repeated
-policy violations": its filter silently refused medical sentences, which were then asked again.
-The tool now never repeats a refused request.
+1. [What you need](#1-what-you-need)
+2. [Install](#2-install)
+3. [Your keys, and a spending limit](#3-your-keys-and-a-spending-limit)
+4. [Check that it works](#4-check-that-it-works)
+5. [Prepare a dataset](#5-prepare-a-dataset)
+6. [Run a dataset from the dashboard](#6-run-a-dataset-from-the-dashboard)
+7. [Find the outputs](#7-find-the-outputs)
+8. [Train a LoRA with the pairs, in volis](#8-train-a-lora-with-the-pairs-in-volis)
+9. [The test run (optional)](#9-the-test-run-optional)
+10. [How it picks a translation](#10-how-it-picks-a-translation)
+11. [When something goes wrong](#11-when-something-goes-wrong)
+12. [Where things are](#12-where-things-are)
 
 ---
 
-## How it picks the best translation
+## 1. What you need
 
-The full process is below. With the default single translator, only the steps that have something
-to decide actually run. Think of a cooking contest, held separately for every sentence.
+- **A Windows computer** with this folder: `D:\AI_Data\projects\pair-refiner`.
+- **[uv](https://docs.astral.sh/uv/)**, which installs Python and everything else the tool uses.
+  **[git](https://git-scm.com/)** too, if you want to keep track of changes.
+- **An [OpenRouter](https://openrouter.ai) account with some credit.** OpenRouter is one account
+  that reaches many AI models (Claude, GPT, Gemini, DeepSeek…). You pay it per use.
+- **A [Google Cloud](https://console.cloud.google.com) account with billing turned on**, for Google
+  Translate. The first 500,000 characters each month are free, then it's $20 per million characters.
+- **Only for the test run (section 9):** a [Hugging Face](https://huggingface.co) account that has
+  accepted the terms of the [FLORES+ dataset](https://huggingface.co/datasets/openlanguagedata/flores_plus).
 
-1. **The cooks.** Each chosen model translates the sentence. If the dataset already has a
-   translation, it joins in too. Identical translations are merged, keeping all their authors. A
-   model that silently refuses is simply left out for that sentence, with a note.
-2. **Hidden labels.** The translations are shuffled and labelled A, B, C… The order comes from the
-   sentence itself, so the same sentence always gets the same order.
-3. **The panel.** Every AI model scores every translation from 1 to 5 for **meaning** and
-   **naturalness**. A judge's scores for its own translation are thrown away. Google Translate
-   translates but doesn't judge.
-4. **The shortlist.** The top 3, by meaning first and naturalness to break ties.
-5. **The head judge** picks the winner from the shortlist, with fresh hidden labels, and gives a
-   one-sentence reason.
-6. **The double-check.** Another AI model (a translator or, failing that, a judge) that didn't write
-   the winner translates it back into the original language. A score called **chrF** (0–100: how many small groups of letters
-   match the original) shows whether the meaning survived.
+## 2. Install
 
-The dataset's own translation is handled by where it came from:
-
-- **`native`** (a native speaker or professional): it's judged like the rest, but it **always wins**.
-  The head judge is skipped. If a model's translation scores a full point higher on meaning, the
-  row is flagged, because that usually means a typo or a mismatched row.
-- **`unknown`**: an ordinary candidate. If it loses, the row is marked **replaced**.
-
-A row is **flagged** (marked for you to look at) when:
-
-| Flag | Why |
-|---|---|
-| panel disagreement | judges' meaning scores for the winner are 2 or more points apart |
-| top judge chose its own | the head judge picked its own model's translation when the panel didn't rank it first |
-| meaning may have changed | the double-check's chrF is below the threshold |
-| beats the native reference | a model beat a native translation by a point or more |
-| malformed judge answer | a judge answered twice in an unusable form, so its vote was dropped |
-| scored only by its authors | every judge wrote that translation, so their own votes were used |
-
-The reasons for these rules are in [docs/adr](docs/adr) (short decision notes).
-
-**Persian tidy-up.** Every Persian text going in or coming out is cleaned up. Arabic look-alike
-letters become Persian ones (ي → ی, ك → ک), and Arabic-Indic digits become Persian digits. The
-half-space is put back where a space was written (می روم → می‌روم, کتاب ها → کتاب‌ها). The old
-spelling ـائی becomes ـایی (یادداشت‌هائی → یادداشت‌هایی), and invisible text-direction marks are
-removed.
-
-**Never paying twice.** Every answer from a model is saved the moment it arrives, in
-`cache\answers.sqlite`. Asking the same thing again, even after a crash or on another day, reads the
-saved answer and costs nothing. Asking anything different, even by one letter, is a new question and
-is paid for once.
-
----
-
-## Setting up (once)
-
-You need [uv](https://docs.astral.sh/uv/), which installs Python and everything else the tool uses,
-and [git](https://git-scm.com/). Run each command below in **PowerShell**, one at a time.
-
-**1. Go to the tool's folder:**
+**Go to the tool's folder:**
 
 ```bash
 cd D:\AI_Data\projects\pair-refiner
 ```
 
-**2. Install everything** (Python 3.12 and the libraries, into a `.venv` folder here):
+**Install everything** (Python 3.12 and the libraries, into a `.venv` folder here):
 
 ```bash
 uv sync
 ```
 
-**3. Check that it works.** This runs the tests. They're free and need no internet:
+## 3. Your keys, and a spending limit
 
-```bash
-uv run pytest
-```
+The tool needs keys: passwords that let it use your accounts. They go in a file called `keys.toml`
+that never leaves your computer (git ignores it). **Never paste a key into a chat, an email or a
+document.**
 
-It should end with something like `45 passed, 2 deselected`. The 2 deselected are the live checks,
-which cost money, so they only run when you ask.
-
-### Your keys
-
-The tool needs two keys: one for **OpenRouter** (all the AI models, through one account) and one
-for **Google Cloud Translation**. They go in a file called `keys.toml` that never leaves your
-computer: git ignores it. **Never paste a key into a chat, email or document.**
-
-**4. Make your keys file** from the example:
+**Make your keys file** from the example:
 
 ```bash
 Copy-Item keys.example.toml keys.toml
 ```
 
-**5. Get an OpenRouter key**, in your web browser:
+**Get an OpenRouter key, and give it a spending limit.** In your web browser:
 
 1. Go to **openrouter.ai**, sign in, and open **Settings → API Keys** (openrouter.ai/settings/keys).
 2. Click **Create Key** and name it `pair-refiner`.
-3. In **Credit limit**, enter a dollar amount, for example **10**. This is your safety net:
-   OpenRouter refuses the key once it has spent that much, whatever the tool does. You can raise it
-   later on the same page.
+3. Set its **credit limit** to a dollar amount, for example **10**. This is your safety net:
+   OpenRouter refuses this key once it has spent that much, whatever the tool does. You can raise
+   it later on the same page.
 4. Copy the key (it starts with `sk-or-v1-`). OpenRouter shows it only once.
 
-**6. Get a Google Cloud Translation key**, in your web browser:
+**Get an OpenRouter management key** (optional: it only lets the dashboard show your balance):
 
-1. Go to **console.cloud.google.com** and pick or create a project. It needs billing turned on. The
-   first 500,000 characters each month are free, then it's $20 per million characters.
+1. Open OpenRouter's [Management API Keys](https://openrouter.ai/settings/management-keys) page.
+2. Click **Create New Key**, name it `pair-refiner-balance`, and copy it.
+
+It can't run models or spend credits.
+
+**Get a Google Cloud Translation key.** In your web browser:
+
+1. Go to **console.cloud.google.com** and pick or create a project with billing turned on.
 2. Search for **Cloud Translation API** and click **Enable**.
 3. Go to **APIs & Services → Credentials → Create credentials → API key**.
 4. Open the new key. Under **API restrictions**, choose **Restrict key → Cloud Translation API**
-   and save. Then the key can't be used for anything else.
+   and save, so the key can't be used for anything else.
 5. Copy the key.
 
-**7. Put both keys in the file.** This opens it in Notepad:
+**Put the keys in the file.** This opens it in Notepad:
 
 ```bash
 notepad keys.toml
 ```
 
-Paste the OpenRouter key on the `api_key =` line and the Google key on the `translate_api_key =`
-line, keeping the quotes. Leave `management_key` as it is: it's only needed for showing your
-balance in the dashboard, which comes later. Save the file.
+Paste each key on its line (`api_key`, `management_key`, `translate_api_key`), keeping the quotes,
+and save.
 
----
+## 4. Check that it works
 
-## What you can do so far
-
-### See the models and their prices
-
-This reads OpenRouter's price list. It's free and needs no key:
+**The tests** are free and need no internet:
 
 ```bash
-uv run python -m pair_refiner.models_report
+uv run pytest
 ```
 
-It shows each maker's newest models, their prices per million tokens (a token is a few letters of
-text), and a rough cost per 1,000 sentences. The models the tool uses are listed in
-[defaults.toml](defaults.toml).
+The output should end with `passed` and a few `deselected`. The deselected ones are the live
+checks, which talk to the real services.
 
-### Run the live check (about $0.07)
-
-This sends 3 short sentences through every model for real, and checks that real answers have the
-shape the tool expects:
+**The live check** sends 3 short sentences through every model for real (about 3 cents). It confirms
+that your keys work and the answers come back as expected:
 
 ```bash
 uv run pytest -m live
 ```
 
-### Run the 20-sentence pilot (about $1.70 the first time)
+## 5. Prepare a dataset
 
-This takes the first 20 sentences of the MIZAN sample, English→Persian, and the same 20 reversed,
-Persian→English:
+A dataset is two files in the `datasets` folder:
 
-```bash
-uv run python -m pair_refiner.pilot
-```
+- **the sentences:** a CSV file (it opens in Excel), a TSV file, or a JSONL file;
+- **its settings:** a small text file ending in `.toml`, with one `name = value` per line.
 
-It prints each sentence's winner and flags, and how much it spent this time. Because answers are
-cached, running it again costs nothing, unless something changed what the models are asked: a
-reworded prompt, a different model, or a change to the tidy-up that alters a sentence. Then only
-the changed questions are paid for. It writes to `runs\pilot-m4\`:
-
-- `pilot-en-fa.csv` and `pilot-fa-en.csv`: one row per candidate translation, best first, with the
-  panel's scores, the winner marked, the head judge's reason, the back-translation, its chrF, the
-  flags and the cost. They open in Excel.
-- `answer-lengths.json`: how long each model's answers really are, for estimating costs.
-
-The pilot runs the full panel (`[panel]` in `defaults.toml`), with its own placeholder head judge
-(Opus 5.5) and double-check threshold (chrF 40). It was made before the M6 test run, so it doesn't use
-the measured defaults. A dataset run (below) does.
-
-### Run a dataset
-
-First, **estimate the cost**. This spends nothing. Here it's for the first 30 sentences of the MIZAN
-sample:
-
-```bash
-uv run python -m pair_refiner.cli datasets\mizan-sample-2000.toml --name mizan-30 --sentences 30 --estimate
-```
-
-The estimate uses today's prices and how long the models' answers really were in earlier runs.
-Sentences already in the cache cost nothing, so the real cost can be lower.
-
-Then **run it, with a spending limit in dollars**:
-
-```bash
-uv run python -m pair_refiner.cli datasets\mizan-sample-2000.toml --name mizan-30 --sentences 30 --limit 2
-```
-
-- `--name` names the run. Its files go to `runs\mizan-30\`.
-- `--sentences` is optional. Without it, the whole dataset is run.
-- `--limit` is the most the run may spend. Before each sentence the tool estimates its cost, and if
-  that would pass the limit, it stops cleanly and writes what it has done so far.
-- `--register written`, `spoken` or `both` overrides the dataset's setting (Persian only).
-- **To pick up a stopped run** (stopped by the limit, by Ctrl+C, or by a crash), run the same
-  command again, with a higher `--limit` if it stopped there. Answers already paid for come from the
-  cache, and the limit counts what the run spent before.
-
-The run writes to `runs\<name>\`:
-
-| File | What's in it |
-|---|---|
-| `pairs.jsonl` | **the training pairs**: one line per sentence with `source`, `target`, both languages, `register`, `author` (a list of every model that wrote the winning text; `dataset` means the file's own translation) and `id` |
-| `candidates.csv` | every candidate translation, best first, with every judge's scores (a vote a judge gave its own model's translation is shown as `5 (own)` and not counted), the winner, the head judge's reason, the double-check, chrF, whether the dataset's translation was replaced, and the cost on the winner's row |
-| `flags.csv` | one row per flag: the sentence, its winner, and why |
-| `run.json` | the settings, totals, cost and time taken |
-| `spending.log` | every paid answer's cost, so a resumed run knows what was spent |
-
-The CSV files open in Excel.
-
----
-
-## Datasets
-
-A dataset is a **CSV**, **TSV** or **JSONL** file of sentences, plus a small **settings file** that
-describes it. The settings file uses TOML, a simple `name = value` format. Example:
-[datasets/mizan-sample-2000.toml](datasets/mizan-sample-2000.toml):
+There's a ready example to copy: [datasets/example.csv](datasets/example.csv), with 10 sentences, and
+its settings, [datasets/example.toml](datasets/example.toml):
 
 ```toml
-file = 'D:\AI_Data\projects\datasets\farsi\mizan\mizan-sample-2000.csv'
+file = "example.csv"        # the sentences: next to this file, or a full path like 'D:\data\my.csv'
 source_lang = "en"          # the language of the sentences: "en" or "fa"
-target_lang = "fa"          # the language to translate into
+target_lang = "fa"          # the language to translate them into
 register = "written"        # Persian only: "written", "spoken" or "both"
-origin = "unknown"          # where the file's own translations came from: "native" or "unknown"
-conversation = false        # true if the lines are a conversation (see below)
+# origin = "native"         # only if the file has its own translations: "native" or "unknown"
+conversation = false        # true if the lines are a conversation
 ```
 
-`file` can also be a path relative to the settings file.
+**The sentences file.** Columns are found by name (capital letters don't matter):
 
-**Columns are found by name** (capital letters don't matter):
-
-- the sentences: `source`, or the language code (`en` or `fa`);
-- an existing translation, if any: `target`, `translation`, or the other language's code. If there
-  is one, `origin` must be set, or the tool stops and asks;
-- an optional `id`. Without it, a sentence's id is its line number.
+- the sentences: `source`, or the language's code (`en` or `fa`);
+- **optional,** translations you already have: `target`, `translation`, or the other language's
+  code. Then the settings must say where they came from:
+  - `origin = "native"`: a native speaker or a professional. Their translation is always kept, and a
+    row where a model does clearly better is flagged for you to look at, since that usually means a
+    typo or a mismatched row.
+  - `origin = "unknown"`: anyone else, or not sure. It competes with the models' translations, and
+    the best one wins.
+- **optional,** an `id` column. Without it, a sentence's id is its line number.
 
 If no column matches, the tool stops and lists the names it accepts.
 
-**When reading, the tool:**
+**The settings.**
 
-- skips empty rows;
-- keeps only the first copy of a repeated sentence. In a conversation, a repeat counts only if its
-  two previous lines are the same too;
-- tidies all Persian text (see above);
-- for a **conversation** (`conversation = true`), sends each line with the two lines before it, so
-  the models understand it in context. If the file has several conversations, name the column that
-  says which line belongs to which: `conversation_column = "chat"`.
+- `register`: for Persian only. `written` is formal Persian (می‌روم به خانه); `spoken` is everyday
+  speech (می‌رم خونه); `both` makes one of each per sentence.
+- `conversation = true`: each line is sent with the two lines before it, so the models understand it
+  in context. If the file holds several conversations, add a column saying which conversation each
+  line belongs to, and name it in the settings: `conversation_column = "chat"`.
 
-Files saved by Excel (UTF-8 with a BOM) work as they are.
+**What the tool does when reading:** it skips empty rows and keeps only the first copy of a repeated
+sentence. It also tidies all Persian text: Arabic look-alike letters become Persian ones (ي → ی,
+ك → ک), Arabic-Indic digits become Persian digits, the half-space goes back where a space was written
+(می روم → می‌روم), the old spelling ـائی becomes ـایی, and invisible text-direction marks are removed.
+Files saved by Excel work as they are.
 
----
+## 6. Run a dataset from the dashboard
 
-## Where things are
+**Start the dashboard.** This opens it in your browser:
+
+```bash
+uv run pair-refiner
+```
+
+It runs on your computer only (`http://127.0.0.1:8765`), and nothing is reachable from other
+machines. Keep the PowerShell window open while you use it. Closing it stops the dashboard, and any
+run that's working.
+
+**Then, in the browser:**
+
+1. Click **New run** and choose your dataset. The models and checks for its direction are already
+   ticked (see [section 10](#10-how-it-picks-a-translation) for why these).
+2. Give the run a **name**, a **sentence limit** if you want only the first few, and a **spending
+   limit** in dollars.
+3. Click **Estimate**. It shows what the run should cost and spends nothing.
+4. Click **Start**. The run's page shows its progress, what it has spent against the limit, and any
+   flags, and it refreshes itself.
+5. Click any sentence to see every translation, the judges' scores and their reasons.
+
+**The spending limit:** before each sentence, the tool estimates its cost. If that would go over the
+limit, it stops cleanly and keeps what it has done.
+
+**Stopped runs pick up where they left off.** A run stopped by the limit, by closing the window, or
+by a crash continues if you start a new run with **the same name** (with a higher limit, if it hit
+the limit). Nothing is paid for twice: every answer from a model is saved the moment it arrives, in
+`cache\answers.sqlite`, and asking the same thing again reads the saved answer for free.
+
+At the top of every page are your **OpenRouter balance** and **Google's spend this month**. Google
+has no balance to ask for, so the tool counts its own Google spend.
+
+**Without the dashboard,** the same run from PowerShell:
+
+```bash
+uv run python -m pair_refiner.cli datasets\example.toml --name example-1 --estimate
+```
+
+```bash
+uv run python -m pair_refiner.cli datasets\example.toml --name example-1 --limit 1
+```
+
+The first command only estimates. The second runs, with a $1 limit. Add `--sentences 20` for just
+the first 20 sentences, or `--register spoken` to override the dataset's register.
+
+## 7. Find the outputs
+
+Each run writes to `runs\<run name>\`:
+
+| File | What's in it |
+|---|---|
+| `pairs.jsonl` | **the training pairs**, one line per sentence: `source`, `target`, the two languages, `register`, `author` (every model that wrote the winning text; `dataset` means your file's own translation) and `id` |
+| `candidates.csv` | every translation considered, best first, with every judge's scores, the winner, the head judge's reason, the double-check and its score, whether your file's translation was replaced, and the cost |
+| `flags.csv` | the sentences worth a look, and why |
+| `run.json` | the settings, totals, cost and time taken |
+
+The CSV files open in Excel. Each pair records its author, so you can later decide what each
+provider's terms allow you to train on. The tool enforces nothing about that.
+
+## 8. Train a LoRA with the pairs, in volis
+
+volis's notebook `notebooks\train-a-lora.ipynb` reads `pairs.jsonl` directly. Open it as it
+explains, and in **Part 2: your choices** set:
+
+```python
+DATA_FILE  = r"D:\AI_Data\projects\pair-refiner\runs\<run name>\pairs.jsonl"
+SOURCE     = "en"      # the run's source language
+TARGET     = "fa"      # the run's target language
+RUN_NAME   = "<a name for this training run>"
+```
+
+Then run the notebook from Part 3, as it describes. Two tips:
+
+- **Use one register per training run.** A run with register `both` has a written and a spoken
+  Persian version of every sentence. Train on written or spoken, not both mixed: make the run with
+  `written` or `spoken`.
+- **Use enough pairs.** The notebook needs at least 20, and a LoRA learns little from fewer than a
+  few hundred.
+
+## 9. The test run (optional)
+
+The test run measures how good each model is, on 200 sentences that come with professional
+translations (FLORES+, in both directions). It decided the defaults below. Run it again if you want
+to re-check them, for example after adding a model. It costs about **$13** the first time. Answers
+are cached, so running it again costs nothing.
+
+**Get FLORES+.** It's a dataset you have to accept the terms for first, on its
+[Hugging Face page](https://huggingface.co/datasets/openlanguagedata/flores_plus). Log in once:
+
+```bash
+uvx --from huggingface_hub hf auth login
+```
+
+Then download the Persian and English sentences into this folder's `inputs\` (git ignores it, and
+FLORES+ must not be shared):
+
+```bash
+uvx --from huggingface_hub hf download openlanguagedata/flores_plus devtest/pes_Arab.jsonl devtest/eng_Latn.jsonl --repo-type dataset --local-dir inputs\flores_plus
+```
+
+**Run it** (with its own $20 limit):
+
+```bash
+uv run python -m pair_refiner.flores_run
+```
+
+It takes about an hour, and writes `runs\test-run\report.md`, along with a CSV per direction. The
+dashboard's **Models** page shows its scores.
+
+## 10. How it picks a translation
+
+**What the test run found, and the defaults.** On FLORES+, no panel of several models beat the best
+single model, in either direction. So by default each direction uses its best single translator:
+
+| Direction | Translator | Checked by |
+|---|---|---|
+| English → Persian | **Google Translate** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second translation to choose between; double-check on |
+| Persian → English | **Claude Opus 5.5** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second translation to choose between; double-check off |
+
+A second translation is your file's own, for example. With only the model's translation, no judge
+is needed, and a sentence costs well under a cent. The settings are in [defaults.toml](defaults.toml),
+and the numbers and reasons are in [docs/adr/0005](docs/adr/0005-test-run-results-and-defaults.md).
+In the dashboard you can tick more translators and judges for any run.
+
+**The full process,** with several translators and judges. Steps with nothing to decide are skipped.
+
+1. **Translations.** Each chosen model translates the sentence, and your file's translation (if any)
+   joins in. Identical translations are merged, keeping all their authors.
+2. **Hidden labels.** The translations are shuffled and labelled A, B, C…, so judges never know who
+   wrote what. The order comes from the sentence itself, so asking again gives the same order.
+3. **The panel.** Every judge scores every translation from 1 to 5, for **meaning** and for
+   **naturalness**. A judge's scores for its own model's translation are thrown away.
+4. **The shortlist.** The top 3 by meaning, with naturalness breaking ties.
+5. **The head judge** picks the winner from the shortlist, with fresh hidden labels, and gives a
+   one-sentence reason in English.
+6. **The double-check.** A model that didn't write the winner translates it back. A score called
+   **chrF** (0–100: how many small groups of letters match the original) shows whether the meaning
+   survived.
+
+**Flags** mark sentences worth a look:
+
+| Flag | Why |
+|---|---|
+| meaning may have changed | the double-check's chrF is below the threshold |
+| panel disagreement | the judges' meaning scores for the winner are 2 or more points apart |
+| top judge chose its own | the head judge picked its own model's translation when the panel didn't rank it first |
+| beats the native reference | a model beat your `native` translation by a point or more on meaning |
+| malformed judge answer | a judge answered twice in an unusable form, so its vote was dropped |
+| scored only by its authors | every judge wrote that translation, so their own votes were used |
+
+**Notes** are worth knowing, but not warnings. For example, "no answer from…" means a model
+silently refused a sentence, and the others carried on without it. The reasons for every rule are in
+[docs/adr](docs/adr).
+
+## 11. When something goes wrong
+
+- **"keys.toml not found":** do [section 3](#3-your-keys-and-a-spending-limit).
+- **The balance says "add a management key":** that key is optional (section 3). Everything else
+  works without it.
+- **A run stopped:** start it again with the same name (section 6). Nothing is paid for twice.
+- **"Rate limit" or a slow run:** new OpenRouter accounts may send 20 requests a minute per model.
+  The tool waits and carries on.
+- **Meta's models are switched off.** During the test run, Meta blocked this account for "repeated
+  policy violations": its filter silently refused medical sentences, which were then asked again.
+  The tool now never repeats a refused request. Ask OpenRouter's support before switching Meta back
+  on in `defaults.toml`.
+
+## 12. Where things are
 
 | Path | What it is |
 |---|---|
+| `datasets\` | your datasets and their settings |
+| `runs\` | each run's outputs (never committed) |
+| `keys.toml` | your keys (yours only, never committed) |
+| `defaults.toml` | the models and checks used by default |
+| `cache\` | every model answer so far, so nothing is paid twice (never committed) |
+| `inputs\` | downloaded test data (never committed) |
+| `docs\adr\` | short notes on why things were decided |
 | `src\pair_refiner\` | the tool's code |
 | `tests\` | the tests (`uv run pytest`) |
-| `datasets\` | dataset settings files |
-| `defaults.toml` | the models used by default |
-| `keys.toml` | your keys (yours only, never committed) |
-| `cache\` | every model answer so far (never committed) |
-| `runs\` | what runs and pilots write (never committed) |
-| `docs\adr\` | short notes on why things were decided |
-| `BUILD.md` | the full plan |
+| `tools\` | the dashboard's browser check |
+| `BUILD.md` | the original plan |
 
-## Still to come
-
-- **M7:** a dashboard in your web browser to set up, start and watch runs.
-- **M8:** the complete step-by-step guide, including using `pairs.jsonl` with volis's
-  `notebooks\train-a-lora.ipynb`.
+**Older tools from the build,** kept for reference: `uv run python -m pair_refiner.models_report`
+lists every maker's models and prices. `uv run python -m pair_refiner.pilot` re-runs the first
+20-sentence pilot with the full panel.

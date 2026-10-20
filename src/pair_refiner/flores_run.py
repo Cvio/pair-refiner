@@ -22,7 +22,10 @@ from pair_refiner.live import LiveConnection, load_keys
 from pair_refiner.run import RunSettings, refine_settings
 
 REPO = Path(__file__).parents[2]
-ENGLISH = Path(r"D:\AI_Data\projects\model-converter\inputs\data\flores_plus\devtest\eng_Latn.jsonl")  # read only
+# English: this repo's own copy if it has one, else model-converter's (read only, never written to).
+ENGLISH = next((p for p in [REPO / "inputs" / "flores_plus" / "devtest" / "eng_Latn.jsonl",
+                            Path(r"D:\AI_Data\projects\model-converter\inputs\data\flores_plus\devtest\eng_Latn.jsonl")]
+                if p.exists()), REPO / "inputs" / "flores_plus" / "devtest" / "eng_Latn.jsonl")
 PERSIAN = REPO / "inputs" / "flores_plus" / "devtest" / "pes_Arab.jsonl"
 OUT = REPO / "runs" / "test-run"
 CACHE = REPO / "cache" / "answers.sqlite"

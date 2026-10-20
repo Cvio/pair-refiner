@@ -1,0 +1,9 @@
+# An example dataset: 10 everyday English sentences to translate into Persian.
+# Copy this file and example.csv to make your own. Every setting is explained in the README.
+
+file = "example.csv"        # the sentences: next to this file, or a full path like 'D:\data\my.csv'
+source_lang = "en"          # the language of the sentences: "en" or "fa"
+target_lang = "fa"          # the language to translate them into
+register = "written"        # Persian only: "written", "spoken" or "both"
+# origin = "native"         # only if the file has its own translations: "native" or "unknown"
+conversation = false        # true if the lines are a conversation, so each one is sent with the two before it
