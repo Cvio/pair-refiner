@@ -176,10 +176,24 @@ run that's working.
 
 **Then, in the browser:**
 
-1. Click **New run** and choose your dataset. The models and checks for its direction are already
-   ticked (see [section 10](#10-how-it-picks-a-translation) for why these).
-2. Give the run a **name**, a **sentence limit** if you want only the first few, and a **spending
-   limit** in dollars.
+1. Click **New run** and choose your **dataset first**. Choosing one reloads the form with the models
+   and checks for its direction already ticked (see [section 10](#10-how-it-picks-a-translation) for
+   why these), and it resets the run name.
+2. Fill in the rest. Leaving every ticked box as it is gives the tested defaults:
+
+   | Field | What it means |
+   |---|---|
+   | **Dataset** | which sentences to translate (the files in `datasets\`) |
+   | **Run name** | the folder the results go in, `runs\<name>`: letters, numbers, `.`, `-` and `_` only. Reusing a name resumes that run |
+   | **Register** | Persian only: `written` (formal), `spoken` (everyday) or `both` (one of each) |
+   | **Translators** | which models translate each sentence |
+   | **Judges** | which models score the translations, when there's more than one to choose between. More judges cost more, and the test run found they don't help |
+   | **Top judge** | the model that makes the final pick from the shortlist |
+   | **Shortlist size** | how many of the best-scored translations go to the final pick. With 2–3 translations per sentence it makes no difference |
+   | **Double-check** | translates the winner back and flags the sentence if it drifted from the original. The threshold is the score (0–100) below which it flags |
+   | **Sentence limit** | only the first N sentences; empty means all of them |
+   | **Spending limit** | the most the run may spend, in dollars (required) |
+
 3. Click **Estimate**. It shows what the run should cost and spends nothing.
 4. Click **Start**. The run's page shows its progress, what it has spent against the limit, and any
    flags, and it refreshes itself.
