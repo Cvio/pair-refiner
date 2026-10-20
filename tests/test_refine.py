@@ -372,6 +372,28 @@ def test_a_double_check_model_that_answers_with_nothing_passes_to_the_next_ai_mo
     assert result.notes == ["no answer from m/b"]
 
 
+def test_a_single_candidate_wins_without_asking_any_judge():
+    standin = StandIn(translations={"google-translate": ON_TABLE}, panel={}, back={})
+
+    result = refine(BOOK, settings(translators=["google-translate"], judges=["m/c"], top_judge="m/c"), standin)
+
+    assert standin.kinds() == [("translate", "google-translate")]
+    assert result.winner.text == ON_TABLE
+    assert result.flags == []
+
+
+def test_with_no_other_ai_translator_the_first_judge_that_didnt_write_it_double_checks():
+    standin = StandIn(translations={"google-translate": ON_TABLE}, panel={},
+                      back={"m/c": "The book is on the table."})
+
+    result = refine(BOOK, settings(translators=["google-translate"], judges=["m/c"], top_judge="m/c",
+                                   back_translation=True), standin)
+
+    assert standin.kinds() == [("translate", "google-translate"), ("back_translate", "m/c")]
+    assert result.chrf == pytest.approx(100.0)
+    assert result.notes == []
+
+
 def test_back_translation_can_be_turned_off():
     standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
                       panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},

@@ -4,21 +4,41 @@ pair-refiner makes **training pairs for a translation LoRA**, English ↔ Persia
 of sentences, has several AI models translate each one, has the models judge each other's
 translations without knowing who wrote what, and keeps the best one.
 
-> **Status (19 October 2026): milestones M0–M5 of 8 are done.** The tool can read datasets, run a
+> **Status (19 October 2026): milestones M0–M6 of 8 are done.** The tool can read datasets, run a
 > whole dataset (or its first N sentences) with real models within a spending limit, pick up after
-> being stopped, estimate the cost first, and write the output files. It **doesn't yet** have its
-> tested defaults for the head judge and the double-check threshold (M6), or a dashboard (M7). The
-> full guide comes in M8. The plan is in [BUILD.md](BUILD.md).
+> being stopped, estimate the cost first, and write the output files. Its defaults come from a
+> measured test run (M6, below). It **doesn't yet** have a dashboard (M7). The full guide comes in
+> M8. The plan is in [BUILD.md](BUILD.md).
+
+## What the test run found, and the defaults
+
+On FLORES+, 200 sentences with professional translations in each direction, **no panel of models
+beat the best single model**. So by default each direction uses its best single translator:
+
+| Direction | Translator | Checked by |
+|---|---|---|
+| English → Persian | **Google Translate** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second candidate to choose between; double-check on (threshold 49.9) |
+| Persian → English | **Claude Opus 5.5** (the closest to the professional translations) | GPT-6.1 Sol, only when there's a second candidate; double-check off |
+
+A "second candidate" is, for example, the dataset's own translation, as in MIZAN. With only the
+model's translation, nobody needs to judge. That makes a sentence cost well under a cent. All of this
+lives in [defaults.toml](defaults.toml), which also keeps the full panel as `[panel]`. The numbers
+and the reasoning are in [docs/adr/0005](docs/adr/0005-test-run-results-and-defaults.md).
+
+**Meta's models are switched off.** During the test run, Meta blocked this account for "repeated
+policy violations": its filter silently refused medical sentences, which were then asked again.
+The tool now never repeats a refused request.
 
 ---
 
 ## How it picks the best translation
 
-Think of a cooking contest, held separately for every sentence.
+The full process is below. With the default single translator, only the steps that have something
+to decide actually run. Think of a cooking contest, held separately for every sentence.
 
-1. **The cooks.** Each model translates the sentence: Claude Opus 5.5, GPT-6.1 Sol, Gemini 4 Argon,
-   DeepSeek V4 Pro, Meta Muse Wonder, and Google Translate. If the dataset already has a
-   translation, it joins in too. Identical translations are merged, keeping all their authors.
+1. **The cooks.** Each chosen model translates the sentence. If the dataset already has a
+   translation, it joins in too. Identical translations are merged, keeping all their authors. A
+   model that silently refuses is simply left out for that sentence, with a note.
 2. **Hidden labels.** The translations are shuffled and labelled A, B, C… The order comes from the
    sentence itself, so the same sentence always gets the same order.
 3. **The panel.** Every AI model scores every translation from 1 to 5 for **meaning** and
@@ -27,8 +47,8 @@ Think of a cooking contest, held separately for every sentence.
 4. **The shortlist.** The top 3, by meaning first and naturalness to break ties.
 5. **The head judge** picks the winner from the shortlist, with fresh hidden labels, and gives a
    one-sentence reason.
-6. **The double-check.** Another AI model, one that didn't write the winner, translates it back
-   into the original language. A score called **chrF** (0–100: how many small groups of letters
+6. **The double-check.** Another AI model (a translator or, failing that, a judge) that didn't write
+   the winner translates it back into the original language. A score called **chrF** (0–100: how many small groups of letters
    match the original) shows whether the meaning survived.
 
 The dataset's own translation is handled by where it came from:
@@ -175,9 +195,9 @@ the changed questions are paid for. It writes to `runs\pilot-m4\`:
   flags and the cost. They open in Excel.
 - `answer-lengths.json`: how long each model's answers really are, for estimating costs.
 
-In the pilot, the head judge (Opus 5.5) and the double-check threshold (chrF 40) are
-**placeholders**. Milestone M6 measures which head judge and threshold work best. At 40 the
-"meaning may have changed" flag fires too often, so ignore it for now.
+The pilot runs the full panel (`[panel]` in `defaults.toml`), with its own placeholder head judge
+(Opus 5.5) and double-check threshold (chrF 40). It was made before the M6 test run, so it doesn't use
+the measured defaults. A dataset run (below) does.
 
 ### Run a dataset
 
@@ -276,9 +296,6 @@ Files saved by Excel (UTF-8 with a BOM) work as they are.
 
 ## Still to come
 
-- **M6:** a test run on FLORES+ (sentences with professional translations) to choose the head judge
-  and the double-check threshold, and to measure whether the whole panel beats the single best
-  model.
 - **M7:** a dashboard in your web browser to set up, start and watch runs.
 - **M8:** the complete step-by-step guide, including using `pairs.jsonl` with volis's
   `notebooks\train-a-lora.ipynb`.

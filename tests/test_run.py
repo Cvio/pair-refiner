@@ -105,6 +105,18 @@ def test_a_dry_run_estimates_the_cost_and_makes_no_calls(tmp_path):
     assert report.cost == 0
 
 
+def test_a_dry_run_with_one_translator_counts_no_judging_but_the_judges_double_check(tmp_path):
+    connection = standin()
+
+    report = run(ROWS, EN_FA, settings(translators=["google-translate"], judges=["m/c"], top_judge="m/c",
+                                       back_translation=True),
+                 CachedConnection(connection, tmp_path / "c.sqlite"), tmp_path / "run", estimator=FIVE_CENTS,
+                 dry_run=True)
+
+    # Per sentence: Google, 11 characters x $20 per million = $0.00022, and m/c's double-check $0.01.
+    assert report.estimate == pytest.approx(3 * 0.01022)
+
+
 def test_register_both_picks_a_written_and_a_spoken_version_of_each_sentence(tmp_path):
     connection = standin()
 

@@ -68,11 +68,14 @@ def refine(row: Row, settings: RefineSettings, connection: Connection) -> Result
     calls = _Calls(connection)
     task = Task(row.source, settings.source_lang, settings.target_lang, settings.register, row.context)
     candidates, reference = _candidates(row, settings, task, calls)
-    _panel(candidates, settings, task, calls)
+    if len(candidates) > 1:  # with a single candidate there is nothing to judge (docs/adr/0005)
+        _panel(candidates, settings, task, calls)
     shortlist = sorted(candidates, key=lambda c: c.panel_score, reverse=True)[: settings.shortlist_size]
 
     reason = None
-    if row.origin == "native":  # the reference is always the output; no top judge (docs/adr/0002)
+    if len(candidates) == 1:
+        winner = candidates[0]
+    elif row.origin == "native":  # the reference is always the output; no top judge (docs/adr/0002)
         winner = reference
         best = max((c for c in candidates if c is not reference), key=lambda c: c.panel_score, default=reference)
         if best.panel_score[0] - reference.panel_score[0] >= 1:
@@ -158,7 +161,9 @@ def _back_translate(winner: Candidate, row: Row, settings: RefineSettings,
                     calls: _Calls) -> tuple[str | None, float | None]:
     """The winner translated back by the first AI translator that didn't write it (docs/adr/0002), and its chrF
     against the source. Flags the row when the chrF is below the threshold."""
-    checkers = [m for m in settings.translators if m != GOOGLE_TRANSLATE and m not in winner.authors]
+    # AI translators first, then judges (docs/adr/0005: with Google Translate as the only translator, a judge checks).
+    checkers = [m for m in dict.fromkeys(settings.translators + settings.judges)
+                if m != GOOGLE_TRANSLATE and m not in winner.authors]
     if not checkers:  # every AI model wrote it: that agreement is the check (docs/adr/0002)
         calls.notes.append("double-check skipped: every AI model wrote it")
         return None, None

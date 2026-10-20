@@ -27,11 +27,12 @@ class Estimator:
                 cost += len(row.source) * GOOGLE_PRICE_PER_CHARACTER
             else:
                 cost += self._call("translate", model)
-        cost += sum(self._call("judge", judge) for judge in settings.judges)
-        if row.origin != "native":
-            cost += self._call("top_judge", settings.top_judge)
-        if settings.back_translation:  # who checks depends on who wins; the first AI translator is the guess
-            checker = next((m for m in settings.translators if m != GOOGLE_TRANSLATE), None)
+        if len(settings.translators) + bool(row.existing) > 1:  # one candidate: nothing to judge (docs/adr/0005)
+            cost += sum(self._call("judge", judge) for judge in settings.judges)
+            if row.origin != "native":
+                cost += self._call("top_judge", settings.top_judge)
+        if settings.back_translation:  # who checks depends on who wins; the first AI translator or judge is the guess
+            checker = next((m for m in settings.translators + settings.judges if m != GOOGLE_TRANSLATE), None)
             cost += self._call("back_translate", checker) if checker else 0.0
         return cost
 

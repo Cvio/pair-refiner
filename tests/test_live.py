@@ -32,7 +32,7 @@ class Recording:
 
 def test_three_real_sentences_have_the_shape_the_standin_assumes(tmp_path):
     with open(REPO / "defaults.toml", "rb") as f:
-        models = tomllib.load(f)["models"]
+        models = tomllib.load(f)["panel"]
     live = Recording(LiveConnection(load_keys(REPO / "keys.toml")))
     connection = CachedConnection(live, tmp_path / "answers.sqlite")  # empty: every answer is fresh
     settings = RefineSettings(source_lang="en", target_lang="fa", register="written",

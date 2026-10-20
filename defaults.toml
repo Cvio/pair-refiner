@@ -1,11 +1,28 @@
-# The default model selection, chosen by the user on 2026-10-18 (M1).
-# Any run can change it in the dashboard. Model ids are OpenRouter's.
+# The default model settings. Any run can change them (in the dashboard, from M7). Model ids are OpenRouter's.
 #
-# meta/muse-wonder is taken out for now (2026-10-19, user's choice): during the M6 test run Meta blocked this
-# account ("Your access has been restricted due to repeated policy violations") after its filter silently
-# refused FLORES+ medical sentences. Put it back only once the block is lifted.
+# Decided by the M6 test run (2026-10-19; docs/adr/0005): on FLORES+ the panel did not beat the best single
+# translator in either direction, so by default each direction uses its best single translator, and one judge
+# (the best measured, GPT-6.1 Sol) only when there are two different candidates, e.g. a dataset's own translation.
+#
+# meta/muse-wonder is out for now (2026-10-19, user's choice): during the M6 test run Meta blocked this account
+# ("Your access has been restricted due to repeated policy violations") after its filter silently refused
+# FLORES+ medical sentences. Put it back only once the block is lifted.
 
-[models]
+[directions.en-fa]
+translators = ["google-translate"]           # chrF 58.1 on FLORES+, the best of all
+judges = ["openai/gpt-6.1-sol"]
+top_judge = "openai/gpt-6.1-sol"
+back_translation = true                      # done by GPT-6.1 Sol, since Google Translate is the only translator
+chrf_threshold = 49.9                        # flagged 6% of FLORES+ sentences
+
+[directions.fa-en]
+translators = ["anthropic/claude-opus-5.5"]  # chrF 75.0 on FLORES+, the best of all
+judges = ["openai/gpt-6.1-sol"]
+top_judge = "openai/gpt-6.1-sol"
+back_translation = false                     # back into Persian scores low on chrF: a threshold would flag half
+
+# The panel measured by the M6 test run (flores_run.py), kept to re-run it, e.g. once Meta's block is lifted.
+[panel]
 translators = [
     "anthropic/claude-opus-5.5",
     "openai/gpt-6.1-sol",
@@ -20,4 +37,3 @@ judges = [
     "google/gemini-4-argon",
     "deepseek/deepseek-v4-pro-0813",
 ]
-# The top judge's default is decided by the test run (M6).

@@ -27,7 +27,7 @@ SENTENCES = 20
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     with open(REPO / "defaults.toml", "rb") as f:
-        models = tomllib.load(f)["models"]
+        models = tomllib.load(f)["panel"]
     path, dataset = read_settings(REPO / "datasets" / "mizan-sample-2000.toml")
     en_fa = read_dataset(path, dataset)[:SENTENCES]
     fa_en = [Row(r.id, persian.tidy(r.existing), r.source, "unknown") for r in en_fa]

@@ -54,7 +54,7 @@ def main() -> None:
     persian_ = [json.loads(line) for line in open(PERSIAN, encoding="utf-8")][:SENTENCES]
     assert [e["id"] for e in english] == [p["id"] for p in persian_], "FLORES+ ids don't line up"
     with open(REPO / "defaults.toml", "rb") as f:
-        models = tomllib.load(f)["models"]
+        models = tomllib.load(f)["panel"]
     settings = RunSettings(translators=models["translators"], judges=models["judges"], top_judge=models["judges"][0],
                            back_translation=True)
     directions = {

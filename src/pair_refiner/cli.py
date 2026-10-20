@@ -4,8 +4,8 @@
                                       [--register written|spoken|both] [--estimate]
 
 The run's files go to runs\\NAME. Running the same name again resumes it: answers already paid for come from the
-cache, and the spending limit counts what the run spent before. The top judge and chrF threshold are placeholders
-until the M6 test run sets their defaults."""
+cache, and the spending limit counts what the run spent before. The models and checks come from defaults.toml,
+for the dataset's direction."""
 
 import argparse
 import sys
@@ -35,11 +35,13 @@ def main() -> None:
     args = parser.parse_args()
 
     with open(REPO / "defaults.toml", "rb") as f:
-        models = tomllib.load(f)["models"]
+        directions = tomllib.load(f)["directions"]
     path, dataset = read_settings(args.dataset)
     rows = read_dataset(path, dataset)
-    settings = RunSettings(translators=models["translators"], judges=models["judges"],
-                           top_judge="anthropic/claude-opus-5.5", register=args.register or dataset.register,
+    direction = f"{dataset.source_lang}-{dataset.target_lang}"
+    if direction not in directions:
+        sys.exit(f"defaults.toml has no settings for {direction}.")
+    settings = RunSettings(**directions[direction], register=args.register or dataset.register,
                            sentence_limit=args.sentences, spending_limit=args.limit)
     estimator = estimate.from_cache(OpenRouter().list_models(), CACHE)
     folder = REPO / "runs" / args.name
