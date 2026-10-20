@@ -4,11 +4,37 @@ pair-refiner makes **training pairs for a translation LoRA**, English ↔ Persia
 of sentences, has several AI models translate each one, has the models judge each other's
 translations without knowing who wrote what, and keeps the best one.
 
-> **Status (19 October 2026): milestones M0–M6 of 8 are done.** The tool can read datasets, run a
+> **Status (20 October 2026): milestones M0–M7 of 8 are done.** The tool can read datasets, run a
 > whole dataset (or its first N sentences) with real models within a spending limit, pick up after
-> being stopped, estimate the cost first, and write the output files. Its defaults come from a
-> measured test run (M6, below). It **doesn't yet** have a dashboard (M7). The full guide comes in
-> M8. The plan is in [BUILD.md](BUILD.md).
+> being stopped, estimate the cost first, and write the output files, all from a dashboard in your
+> browser. Its defaults come from a measured test run (M6, below). The full guide comes in M8. The
+> plan is in [BUILD.md](BUILD.md).
+
+## The dashboard
+
+One command starts it and opens it in your browser:
+
+```bash
+uv run pair-refiner
+```
+
+It runs on your computer only (`http://127.0.0.1:8765`): nothing is reachable from other machines.
+Close the PowerShell window to stop it. A run that's working stops too, and picks up from the cache
+when you start it again with the same name.
+
+- **Runs:** every run, its status, how far it got, its flags and its cost.
+- **New run:** pick a dataset, the models, the judges and the checks (the defaults for the
+  dataset's direction are ticked), a sentence limit and a spending limit. **Estimate** first (it
+  spends nothing), then **Start**.
+- **One run:** live progress, what it has spent against its limit, and the flags. Click a sentence
+  to see every candidate, every judge's scores, and the reasons.
+- **Models:** the models for each direction, today's prices, and their test-run scores.
+- At the top of every page: your **OpenRouter balance** and **Google's spend this month**. Google
+  has no balance to ask for, so the tool counts its own Google spend, at $20 per million characters,
+  without assuming the free monthly allowance. The balance needs a **management key** in
+  `keys.toml`. Make one on OpenRouter's [Management API Keys](https://openrouter.ai/settings/management-keys)
+  page: click Create New Key, then paste it on the `management_key` line. It can't run models or
+  spend credits; the tool only uses it to read the balance.
 
 ## What the test run found, and the defaults
 
