@@ -1,6 +1,7 @@
 """Seam 8: the live check. Talks to the real services; run by hand with `uv run pytest -m live`.
 The refining check costs about $0.20."""
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -45,6 +46,8 @@ def test_three_real_sentences_have_the_shape_the_standin_assumes(tmp_path):
 
     for result in results:
         assert result.winner.text
+        # Reasons are for the user, who reads English, not Persian.
+        assert not re.search("[؀-ۿ]", result.top_judge_reason or ""), result.top_judge_reason
         assert not [f for f in result.flags if f.startswith("malformed")], result.flags
         assert result.chrf is not None or result.notes == ["double-check skipped: every AI model wrote it"]
     for kind, model, answer in live.answers:

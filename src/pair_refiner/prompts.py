@@ -49,7 +49,8 @@ def judge(task: Task, candidates: dict[str, str], attempt: int) -> tuple[str, st
               "Score every candidate:\n"
               "- meaning, 1 to 5: 5 = exactly the meaning of the source, nothing added, lost or changed;\n"
               f"- naturalness, 1 to 5: 5 = exactly what a fluent native speaker would write.\n"
-              "Then rank all the labels, best first, and give a one-sentence reason for your ranking.\n"
+              "Then rank all the labels, best first, and give a one-sentence reason for your ranking, "
+              "written in English.\n"
               'Answer only with JSON: {"scores": {"A": {"meaning": 5, "naturalness": 4}, ...}, '
               '"ranking": ["A", ...], "reason": "..."}')
     return system, _candidates_message(task, candidates, attempt)
@@ -61,7 +62,8 @@ def top_judge(task: Task, candidates: dict[str, str], attempt: int) -> tuple[str
     system = (f"You are the final judge of {source}-to-{target} translation. You will see a {source} sentence "
               f"and a shortlist of candidate {target} translations labelled with letters. "
               f"{_language_notes(task)}\n"
-              "Pick the single best translation: first exact meaning, then naturalness. Give a one-sentence reason.\n"
+              "Pick the single best translation: first exact meaning, then naturalness. Give a one-sentence reason, "
+              "written in English.\n"
               'Answer only with JSON: {"winner": "A", "reason": "..."}')
     return system, _candidates_message(task, candidates, attempt)
 
