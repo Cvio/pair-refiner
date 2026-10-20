@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set page = "models" %}
+{% block title %}Models · pair-refiner{% endblock %}
+{% macro model_rows(ids, chrf, accuracy) %}
+  {% for id in ids %}
+  {% set m = prices.get(id) %}
+  <tr>
+    <td>{{ id }}</td>
+    <td class="num">{% if id == google %}$20 per million characters{% elif m %}${{ "%.2f"|format(m.input_price) }} / ${{ "%.2f"|format(m.output_price) }}{% else %}<span class="muted">unknown</span>{% endif %}</td>
+    <td class="num">{{ "%.1f"|format(chrf[id]) if id in chrf else "—" }}</td>
+    <td class="num">{{ "%.0f%%"|format(100 * accuracy[id]) if id in accuracy else "—" }}</td>
+  </tr>
+  {% endfor %}
+{% endmacro %}
+{% block body %}
+<h1>Models</h1>
+<p class="muted">Prices are OpenRouter's today: US dollars per million tokens, input / output. The scores are from the
+  test run on FLORES+: chrF is how close each model's translations came to the professional ones (out of 100), and a
+  judge's accuracy is how often its first choice was the candidate closest to them.</p>
+
+{% for direction, d in directions.items() %}
+{% set s = scores.get(direction, {}) %}
+<div class="card">
+  <h2 style="margin-top:0">Defaults for {{ direction }}</h2>
+  <table>
+    <thead><tr><th>Model</th><th>Price</th><th>Test-run chrF</th><th>Judge accuracy</th></tr></thead>
+    <tbody>{{ model_rows(d.translators + (d.judges | reject("in", d.translators) | list), s.get("translator_chrf", {}), s.get("judge_accuracy", {})) }}</tbody>
+  </table>
+  <p class="muted">Translators: {{ d.translators | join(", ") }} · judges: {{ d.judges | join(", ") }} · top judge:
+    {{ d.top_judge }} · double-check: {{ "on, threshold %.1f"|format(d.chrf_threshold) if d.back_translation and d.chrf_threshold is defined else ("on" if d.back_translation else "off") }}</p>
+  {% if s %}
+  <p class="muted">Test run: the panel's winners scored chrF {{ "%.1f"|format(s.ensemble_chrf) }}{% if s.threshold is not none %};
+    recommended threshold {{ "%.1f"|format(s.threshold) }}, flagging {{ "%.0f%%"|format(100 * s.flag_share) }}{% endif %}.</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if panel %}
+<div class="card">
+  <h2 style="margin-top:0">The full panel (as measured in the test run)</h2>
+  <table>
+    <thead><tr><th>Model</th><th>Price</th><th>chrF (en-fa)</th><th>Judge accuracy (en-fa)</th></tr></thead>
+    <tbody>{{ model_rows(panel.translators + (panel.judges | reject("in", panel.translators) | list), scores.get("en-fa", {}).get("translator_chrf", {}), scores.get("en-fa", {}).get("judge_accuracy", {})) }}</tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

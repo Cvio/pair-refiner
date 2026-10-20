@@ -50,12 +50,28 @@ class LiveConnection:
 
     def __init__(self, keys: dict):
         self._openrouter_key = keys["openrouter"]["api_key"]
+        self._management_key = keys["openrouter"].get("management_key", "")
         self._google_key = keys["google"]["translate_api_key"]
         self._models: dict[str, Model] = {m.id: m for m in OpenRouter().list_models()}
         settings = {"temperature_when_accepted": 0, "effort": "lowest", "max_tokens": MAX_OUTPUT_TOKENS}
         self.fingerprint = hashlib.sha256(
             json.dumps([prompts.FINGERPRINT, settings, "google-nmt-v2"]).encode()).hexdigest()[:16]
         self._http = httpx.Client(timeout=120)
+
+    def list_models(self) -> list[Model]:
+        return list(self._models.values())
+
+    def balance(self) -> float:
+        """OpenRouter credits left: total_credits - total_usage, from the credits endpoint, which only answers to the
+        management key. Raises LiveError if there's no management key or the call fails."""
+        key = self._management_key
+        if not key or key.endswith("..."):
+            raise LiveError("no management key in keys.toml")
+        reply = self._http.get(f"{OPENROUTER_API}/credits", headers={"Authorization": f"Bearer {key}"})
+        if not reply.is_success:
+            raise LiveError(f"OpenRouter credits: the call failed ({reply.status_code})")
+        data = reply.json()["data"]
+        return float(data["total_credits"]) - float(data["total_usage"])
 
     def translate(self, model: str, task: Task) -> Answer:
         if model == GOOGLE_TRANSLATE:

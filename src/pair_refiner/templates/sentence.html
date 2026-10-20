@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Sentence {{ n + 1 }} · {{ name }} · pair-refiner{% endblock %}
+{% block body %}
+<p><a href="/runs/{{ name }}">← {{ name }}</a> · sentence {{ n + 1 }} of {{ count }}
+  {% if n > 0 %} · <a href="/runs/{{ name }}/sentences/{{ n - 1 }}">previous</a>{% endif %}
+  {% if n + 1 < count %} · <a href="/runs/{{ name }}/sentences/{{ n + 1 }}">next</a>{% endif %}</p>
+
+<div class="card">
+  <div class="muted">Sentence {{ winner.id }}{% if winner.register %} · {{ winner.register }}{% endif %}</div>
+  <p dir="auto" style="font-size:1.15rem">{{ winner.source }}</p>
+  {% if flags %}<p class="warn">Flags: {{ flags | join("; ") }}</p>{% endif %}
+  {% if winner.notes %}<p class="muted">Notes: {{ winner.notes }}</p>{% endif %}
+  {% if winner["top judge reason"] %}<p>Top judge's reason: {{ winner["top judge reason"] }}</p>{% endif %}
+  {% if winner["back-translation"] %}<p>Double-check: <span dir="auto">{{ winner["back-translation"] }}</span>
+    <span class="muted">(chrF {{ winner.chrF }})</span></p>{% endif %}
+  {% if winner.replaced %}<p class="muted">Dataset's own translation replaced: {{ winner.replaced }}</p>{% endif %}
+  <p class="muted">Cost of this sentence: ${{ winner["sentence cost"] }}</p>
+</div>
+
+<div class="table-scroll"><table>
+  <thead><tr><th>Candidate</th><th>Authors</th>
+    {% for j in judges %}<th>{{ j }} meaning</th><th>{{ j }} naturalness</th>{% endfor %}
+    <th>Panel meaning</th><th>Panel naturalness</th><th>Shortlist</th><th>Winner</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr{% if r.winner == "yes" %} style="font-weight:600"{% endif %}>
+    <td dir="auto">{{ r.candidate }}</td>
+    <td class="muted">{{ r.authors }}</td>
+    {% for j in judges %}<td class="num">{{ r[j ~ " meaning"] }}</td><td class="num">{{ r[j ~ " naturalness"] }}</td>{% endfor %}
+    <td class="num">{{ r["panel meaning"] }}</td><td class="num">{{ r["panel naturalness"] }}</td>
+    <td>{{ r.shortlisted }}</td><td class="good">{{ "winner" if r.winner == "yes" }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="muted">A score marked "(own)" is a judge's vote for its own model's translation: shown, but not counted.</p>
+{% endblock %}

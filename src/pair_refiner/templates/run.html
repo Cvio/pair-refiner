@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block head %}{% if refresh %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
+{% block title %}{{ name }} · pair-refiner{% endblock %}
+{% block body %}
+<h1>{{ name }}</h1>
+{% if record is none %}
+<p class="muted">Starting…</p>
+{% else %}
+{% set done = record.totals.sentences %}
+{% set limit = record.settings.spending_limit %}
+<div class="card">
+  <p><b>{{ record.status }}</b>{% if refresh %} <span class="muted">— this page refreshes itself</span>{% endif %}</p>
+  <p class="num">{{ done }} of {{ record.planned }} sentences</p>
+  <div class="bar"><div style="width: {{ (100 * done / record.planned) if record.planned else 0 }}%"></div></div>
+  <p class="num">Spent: <b>${{ "%.4f"|format(record.cost) }}{% if limit %} of ${{ "%.2f"|format(limit) }}{% endif %}</b>
+    {% if limit %}<span class="muted">({{ "%.0f%%"|format(100 * record.cost / limit) }} of the limit)</span>{% endif %}</p>
+  <p class="muted">{{ record.dataset.source_lang }} → {{ record.dataset.target_lang }} ·
+    translators {{ record.settings.translators | join(", ") }} · judges {{ record.settings.judges | join(", ") }} ·
+    started {{ record.started }}{% if record.finished %} · finished {{ record.finished }}{% endif %}</p>
+  <p class="muted">Files: runs\{{ name }}\ (pairs.jsonl, candidates.csv, flags.csv, run.json)</p>
+</div>
+
+<h2>Flags</h2>
+{% if not flags %}
+<p class="muted">No flags.</p>
+{% else %}
+<div class="table-scroll"><table>
+  <thead><tr><th>Sentence</th><th>Winner</th><th>Flag</th></tr></thead>
+  <tbody>
+  {% for f in flags %}
+  <tr><td dir="auto">{{ f.source }}</td><td dir="auto">{{ f.winner }}</td><td class="warn">{{ f.flag }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+<h2>Sentences</h2>
+<p class="muted">Click a sentence to see every candidate, every judge's scores, and the reasons.</p>
+<div class="table-scroll"><table>
+  <thead><tr><th>id</th><th>Sentence</th><th>Winner</th><th>Authors</th></tr></thead>
+  <tbody>
+  {% for s in sentences %}
+  <tr>
+    <td>{{ s.id }}{% if s.register %} <span class="muted">{{ s.register }}</span>{% endif %}</td>
+    <td dir="auto"><a href="/runs/{{ name }}/sentences/{{ s.n }}">{{ s.source }}</a></td>
+    <td dir="auto">{{ s.candidate }}</td>
+    <td class="muted">{{ s.authors }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+{% endblock %}

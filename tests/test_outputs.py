@@ -53,6 +53,7 @@ def test_run_json_records_the_settings_totals_cost_and_time(tmp_path):
         "settings": {"translators": ["m/a", "m/b"], "judges": ["m/a", "m/c"], "top_judge": "m/c",
                      "shortlist_size": 3, "back_translation": True, "chrf_threshold": 40.0, "register": "written",
                      "sentence_limit": None, "spending_limit": None},
+        "planned": 2,
         "totals": {"sentences": 2, "pairs": 2, "flagged": 1, "replaced": 0},
         "cost": 0.086,  # per sentence: 2 translations 0.002, 2 judges 0.02, top judge 0.02, double-check 0.001
     }

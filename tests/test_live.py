@@ -55,6 +55,12 @@ def test_three_real_sentences_have_the_shape_the_standin_assumes(tmp_path):
     print(f"\nlive check: {len(live.answers)} calls, ${sum(r.cost for r in results):.4f}")
 
 
+def test_balance_reads_the_openrouter_credits_with_the_management_key():
+    balance = LiveConnection(load_keys(REPO / "keys.toml")).balance()
+
+    assert isinstance(balance, float) and balance >= 0
+
+
 def test_list_models_reads_openrouter_prices_and_settings():
     models = {m.id: m for m in OpenRouter().list_models()}
 

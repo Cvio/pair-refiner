@@ -11,6 +11,16 @@ from pathlib import Path
 from pair_refiner.connection import Answer, Connection, Task
 
 
+def month_spend(path: Path, model: str) -> float:
+    """What the tool paid a model this calendar month (UTC), counted from the answers stored in the cache."""
+    if not path.exists():
+        return 0.0
+    with sqlite3.connect(path) as db:
+        spent = db.execute("SELECT SUM(cost) FROM answers WHERE model = ? "
+                           "AND strftime('%Y-%m', stored) = strftime('%Y-%m', 'now')", (model,)).fetchone()[0]
+    return spent or 0.0
+
+
 class CachedConnection:
     """A connection that answers from the cache when it can, and stores every new answer before returning it.
     A cached answer costs nothing this time."""

@@ -81,6 +81,10 @@ def main() -> None:
         _details(OUT / f"details-{source}-{target}.csv", reports[(source, target)], target)
         print(f"  done; spent so far ${budget.spent:.2f}", flush=True)
     (OUT / "report.md").write_text(_report(reports, budget.spent), encoding="utf-8")
+    scores = {f"{s}-{t}": {"translator_chrf": r.translator_chrf, "judge_accuracy": r.judge_accuracy,
+                           "top_judge": r.top_judge, "ensemble_chrf": r.ensemble_chrf, "threshold": r.threshold,
+                           "flag_share": r.flag_share} for (s, t), r in reports.items()}
+    (OUT / "scores.json").write_text(json.dumps(scores, indent=1), encoding="utf-8")  # for the dashboard
     print(f"Report: {OUT / 'report.md'}")
 
 

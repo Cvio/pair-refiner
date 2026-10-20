@@ -12,6 +12,9 @@ from pair_refiner.estimate import Estimator
 from pair_refiner.refine import RefineSettings, Result, refine
 
 
+PROGRESS_EVERY = 2.0  # seconds between updates of a running run's files
+
+
 @dataclass(frozen=True)
 class RunSettings:
     translators: list[str]
@@ -34,7 +37,7 @@ class Sentence:
 
 @dataclass
 class RunReport:
-    status: str  # "finished", "stopped at the spending limit", or "estimate" (a dry run)
+    status: str  # "running", "finished", "stopped at the spending limit", or "estimate" (a dry run)
     sentences: list[Sentence] = field(default_factory=list)
     cost: float = 0.0  # USD actually spent by this run, earlier stopped attempts included
     estimate: float | None = None  # USD, a dry run's estimate
@@ -50,7 +53,23 @@ def run(rows: list[Row], dataset: DatasetSettings, settings: RunSettings, connec
         return RunReport("estimate", estimate=estimate)
     started, clock = datetime.now().astimezone(), time.monotonic()
     ledger = _Ledger(connection, folder / "spending.log")
-    report = RunReport("finished")
+    planned = len(rows[: settings.sentence_limit]) * len(_registers(dataset, settings))
+    report = RunReport("running")
+    last_write = -1e9
+
+    def write(final: bool = False) -> None:
+        """The output files, kept up to date while the run works (so its page shows progress), and at the end."""
+        nonlocal last_write
+        if final or time.monotonic() - last_write >= PROGRESS_EVERY:
+            report.cost = ledger.spent
+            outputs.write(folder, report, dataset, settings, {
+                "planned": planned,
+                "started": started.isoformat(timespec="seconds"),
+                "finished": datetime.now().astimezone().isoformat(timespec="seconds") if final else None,
+                "seconds": round(time.monotonic() - clock, 1)})
+            last_write = time.monotonic()
+
+    write()
     for row in rows[: settings.sentence_limit]:
         for register in _registers(dataset, settings):
             this = refine_settings(dataset, settings, register)
@@ -60,14 +79,13 @@ def run(rows: list[Row], dataset: DatasetSettings, settings: RunSettings, connec
                 break
             result = refine(row, this, ledger)
             report.sentences.append(Sentence(row, register, result))
+            write()
         else:
             continue
         break
-    report.cost = ledger.spent
-    outputs.write(folder, report, dataset, settings, {
-        "started": started.isoformat(timespec="seconds"),
-        "finished": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "seconds": round(time.monotonic() - clock, 1)})
+    if report.status == "running":
+        report.status = "finished"
+    write(final=True)
     return report
 
 

@@ -21,6 +21,16 @@ class StandIn:
     calls: list[tuple] = field(default_factory=list)  # answered calls only
     fingerprint: str = "standin"
     fail_after: int | None = None  # the connection is lost once this many calls have been answered
+    balance_left: float | None = 10.0  # the OpenRouter balance; None: no management key
+    models: list = field(default_factory=list)  # what list_models returns
+
+    def balance(self) -> float:
+        if self.balance_left is None:
+            raise LookupError("no management key")
+        return self.balance_left
+
+    def list_models(self) -> list:
+        return self.models
 
     def _check(self) -> None:
         if self.fail_after is not None and len(self.calls) >= self.fail_after:

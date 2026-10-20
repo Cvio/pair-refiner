@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% block head %}{% endblock %}
+<title>{% block title %}pair-refiner{% endblock %}</title>
+<style>
+  :root { --bg:#fbfaf7; --card:#fff; --ink:#1d1d1b; --muted:#6b6a65; --line:#e3e1da; --accent:#2f5d8a; --warn:#a4561a; --good:#2e7d4f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#171716; --card:#21211f; --ink:#ecebe6; --muted:#a3a29b; --line:#373632; --accent:#8db6e0; --warn:#e0a46d; --good:#7cc79a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, "Segoe UI", sans-serif; }
+  header { border-bottom:1px solid var(--line); background:var(--card); }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+  header .wrap { display:flex; gap:20px; align-items:center; flex-wrap:wrap; padding-top:10px; padding-bottom:10px; }
+  header .brand { font-weight:700; }
+  header nav a { margin-inline-end:14px; color:var(--ink); text-decoration:none; }
+  header nav a.on { color:var(--accent); font-weight:600; }
+  header .money { margin-inline-start:auto; color:var(--muted); font-size:.9rem; }
+  header .money b { color:var(--ink); }
+  main { padding-top:20px; padding-bottom:48px; }
+  h1 { font-size:1.35rem; margin:0 0 14px; }
+  h2 { font-size:1.1rem; margin:24px 0 8px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); }
+  th, td { border-bottom:1px solid var(--line); padding:7px 8px; text-align:start; vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:.85rem; }
+  a { color:var(--accent); }
+  .muted { color:var(--muted); }
+  .warn { color:var(--warn); }
+  .good { color:var(--good); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:14px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .persian { font-family:"Vazirmatn","Segoe UI",Tahoma,sans-serif; font-size:1.08rem; }
+  form .row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  label { display:inline-flex; gap:6px; align-items:center; }
+  input, select, button { font:inherit; color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:6px; padding:5px 8px; }
+  button { cursor:pointer; border-color:var(--accent); }
+  button.primary { background:var(--accent); color:var(--bg); }
+  .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; }
+  .bar > div { height:100%; background:var(--accent); }
+  .table-scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <span class="brand">pair-refiner</span>
+  <nav>
+    <a href="/runs" class="{{ 'on' if page == 'runs' }}">Runs</a>
+    <a href="/new" class="{{ 'on' if page == 'new' }}">New run</a>
+    <a href="/models" class="{{ 'on' if page == 'models' }}">Models</a>
+  </nav>
+  <span class="money">
+    OpenRouter balance: {% if money.balance is none %}<span class="warn">add a management key to keys.toml to see it</span>{% else %}<b>${{ "%.2f"|format(money.balance) }}</b>{% endif %}
+    &nbsp;·&nbsp; Google this month: <b>${{ "%.4f"|format(money.google) }}</b>
+  </span>
+</div></header>
+<main class="wrap">
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% set page = "new" %}
+{% block title %}New run · pair-refiner{% endblock %}
+{% block body %}
+<h1>New run</h1>
+{% if not datasets %}
+<p class="muted">No datasets yet. Put a dataset's settings file (.toml) in the <code>datasets</code> folder; the README
+  explains how.</p>
+{% else %}
+<form method="post" action="/new">
+  <div class="card">
+    <div class="row">
+      <label>Dataset
+        <select name="dataset" onchange="location.href='/new?dataset=' + encodeURIComponent(this.value)">
+          {% for d in datasets %}<option value="{{ d }}"{{ " selected" if d == chosen }}>{{ d }}</option>{% endfor %}
+        </select></label>
+      <span class="muted">direction {{ direction }}</span>
+      <label>Run name <input name="name" value="{{ name }}" required pattern="[A-Za-z0-9._-]+" size="28"></label>
+    </div>
+    <div class="row">
+      <label>Register
+        <select name="register">
+          {% for r in ["written", "spoken", "both"] %}<option{{ " selected" if r == register }}>{{ r }}</option>{% endfor %}
+        </select></label>
+      <span class="muted">(Persian only)</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row"><b>Translators</b>
+      {% for m in offered %}<label><input type="checkbox" name="translators" value="{{ m }}"{{ " checked" if m in picked.get("translators", []) }}>{{ m }}</label>{% endfor %}
+    </div>
+    <div class="row"><b>Judges</b>
+      {% for m in offered if m != google %}<label><input type="checkbox" name="judges" value="{{ m }}"{{ " checked" if m in picked.get("judges", []) }}>{{ m }}</label>{% endfor %}
+    </div>
+    <div class="row">
+      <label>Top judge
+        <select name="top_judge">
+          {% for m in offered if m != google %}<option{{ " selected" if m == picked.get("top_judge") }}>{{ m }}</option>{% endfor %}
+        </select></label>
+      <label>Shortlist size <input type="number" name="shortlist_size" min="1" max="9" value="{{ picked.get('shortlist_size', 3) }}"></label>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" name="back_translation"{{ " checked" if picked.get("back_translation") }}>Double-check by back-translation</label>
+      <label>threshold (chrF) <input type="number" name="chrf_threshold" step="0.1" min="0" max="100" value="{{ picked.get('chrf_threshold', 40.0) }}"></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label>Sentence limit <input type="number" name="sentence_limit" min="1" value="{{ form.get('sentence_limit', '') }}" placeholder="all"></label>
+      <label>Spending limit, US$ <input type="number" name="spending_limit" step="0.01" min="0.01" value="{{ form.get('spending_limit', '') }}" required></label>
+    </div>
+    <div class="row">
+      <button name="action" value="estimate">Estimate</button>
+      <button name="action" value="start" class="primary">Start</button>
+      {% if estimate is not none %}
+      <span>Estimate: <b>${{ "%.4f"|format(estimate) }}</b>
+        <span class="muted">— from today's prices and {{ "measured answer lengths" if measured else "a rough guess (no run has measured yet)" }}.
+        Answers already in the cache cost nothing.</span></span>
+      {% endif %}
+    </div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
