@@ -3,6 +3,7 @@
 import hashlib
 import json
 import random
+import unicodedata
 from dataclasses import dataclass, field
 from string import ascii_uppercase
 
@@ -176,10 +177,17 @@ def _back_translate(winner: Candidate, row: Row, settings: RefineSettings,
         calls.notes.append(f"no answer from {model}")  # a silent refusal: the next AI model checks instead
     else:
         return None, None
-    chrf = sacrebleu.sentence_chrf(back, [row.source]).score
+    chrf = sacrebleu.sentence_chrf(_words_only(back), [_words_only(row.source)]).score
     if chrf < settings.chrf_threshold:
         calls.flags.append("meaning may have changed")
     return back, chrf
+
+
+def _words_only(text: str) -> str:
+    """The text as the double-check compares it: no capitals, no punctuation, single spaces. A heading in CAPITALS
+    or a stray quote mark says nothing about whether the meaning survived (seen in the MIZAN pilot)."""
+    kept = "".join(" " if unicodedata.category(ch).startswith("P") else ch for ch in text.casefold())
+    return " ".join(kept.split())
 
 
 def _ask_twice(ask, parse):

@@ -408,6 +408,19 @@ def test_rewording_one_kind_of_request_re_asks_only_that_kind(tmp_path):
     assert standin.kinds()[5:] == [("judge", "m/c"), ("judge", "m/d")]
 
 
+def test_the_double_check_ignores_capitals_and_punctuation():
+    # MIZAN's heading: same words, but in capitals and without the full stop. Case-sensitive chrF gave it 1.2.
+    row = Row(id="1", source="SAME SPECIES, DIFFERENT WORLDS", existing=None, origin=None)
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE, back={"m/b": "Same species, different worlds."})
+
+    result = refine(row, settings(back_translation=True), standin)
+
+    assert result.chrf == pytest.approx(100.0)
+    assert result.flags == []
+
+
 def test_back_translation_can_be_turned_off():
     standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
                       panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
