@@ -82,7 +82,7 @@ def dataset(root, name="three"):
 
 
 def priced(connection: StandIn) -> StandIn:
-    connection.models = [Model(m, m, "m", 0, 1.0, 1.0, True, None) for m in ("m/a", "m/b", "m/c", "m/d")]
+    connection.models = [Model(m, m, "m", 0, 1.0, 1.0, True, None) for m in ("m/a", "m/b", "m/c", "m/d", "m/t")]
     return connection
 
 
@@ -153,6 +153,25 @@ def test_a_sentence_page_shows_every_candidate_every_judges_scores_and_the_reaso
     assert "m/c meaning" in text and "m/d naturalness" in text
     assert "It reads best." in text  # the top judge's reason
     assert "panel disagreement" in text
+
+
+def test_a_dataset_asking_for_tidy_up_is_tidied_and_its_sentence_page_shows_the_original(root):
+    (root / "defaults.toml").write_text((root / "defaults.toml").read_text(encoding="utf-8")
+                                        + '\n[tidy]\nmodel = "m/t"\n', encoding="utf-8")
+    (root / "datasets" / "loud.csv").write_text("source\nTHE BOOK IS ON THE TABLE.\n", encoding="utf-8")
+    (root / "datasets" / "loud.toml").write_text(
+        'file = "loud.csv"\nsource_lang = "en"\ntarget_lang = "fa"\ntidy_source = true\n', encoding="utf-8")
+    connection = priced(standin())
+    connection.tidied = {"THE BOOK IS ON THE TABLE.": "The book is on the table."}
+    browser = client(root, connection)
+
+    browser.post("/new", data={**NEW_RUN, "dataset": "loud", "name": "loud-run", "action": "start"})
+    wait_for(browser, "/runs/loud-run", "finished")
+    text = browser.get("/runs/loud-run/sentences/0").get_data(as_text=True)
+
+    assert ("tidy", "m/t") in connection.kinds()
+    assert "The book is on the table." in text
+    assert "Original in the dataset: THE BOOK IS ON THE TABLE." in text
 
 
 @pytest.mark.parametrize("balance, shown", [(12.34, "$12.34"), (None, "add a management key")])

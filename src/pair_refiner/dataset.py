@@ -25,6 +25,7 @@ class DatasetSettings:
     origin: Origin | None = None  # where the dataset's own translations came from
     conversation: bool = False  # lines are sent with the previous two lines of their conversation
     conversation_column: str | None = None  # names each line's conversation; without it, one conversation
+    tidy_source: bool = False  # tidy each sentence's punctuation and capitals before translating (docs/adr/0006)
 
 
 @dataclass(frozen=True)

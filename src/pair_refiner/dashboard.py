@@ -8,6 +8,7 @@ import threading
 import time
 import tomllib
 from datetime import datetime
+from dataclasses import replace
 from pathlib import Path
 
 from flask import Flask, abort, redirect, render_template, request
@@ -52,7 +53,7 @@ def create_app(root: Path, connection: Connection, cache: Path) -> Flask:
     def new_action():
         form = request.form
         path, dataset = read_settings(root / "datasets" / f"{form['dataset']}.toml")
-        settings = _settings_from(form)
+        settings = replace(_settings_from(form), tidy_model=_defaults(root).get("tidy", {}).get("model"))
         rows = read_dataset(path, dataset)
         if form.get("action") == "estimate":
             estimator = estimate.from_cache(list(prices.get().values()), cache)

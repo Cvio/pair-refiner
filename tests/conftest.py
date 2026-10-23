@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from pair_refiner.connection import Answer, Task
 
-PRICES = {"translate": 0.001, "judge": 0.01, "top_judge": 0.02, "back_translate": 0.001}
+PRICES = {"translate": 0.001, "judge": 0.01, "top_judge": 0.02, "back_translate": 0.001, "tidy": 0.0001}
 
 
 @dataclass
@@ -18,6 +18,7 @@ class StandIn:
     top_pick: str | set[str] | None = None  # the text the top judge picks (whichever of the set is shown)
     back: dict[str, str | dict[str, str]] = field(default_factory=dict)  # model -> text, or winner text -> text
     garbled: dict[str, list[str]] = field(default_factory=dict)  # model -> raw answers it gives before a good one
+    tidied: dict[str, str] = field(default_factory=dict)  # source -> its tidied version (unlisted: unchanged)
     calls: list[tuple] = field(default_factory=list)  # answered calls only
     fingerprint: str = "standin"
     fingerprints: dict[str, str] = field(default_factory=dict)  # per kind of request; overrides `fingerprint`
@@ -73,6 +74,11 @@ class StandIn:
         self.calls.append(("back_translate", model, text))
         prepared = self.back[model]
         return Answer(prepared if isinstance(prepared, str) else prepared[text], PRICES["back_translate"])
+
+    def tidy(self, model: str, text: str, lang: str) -> Answer:
+        self._check()
+        self.calls.append(("tidy", model, text))
+        return Answer(self.tidied.get(text, text), PRICES["tidy"])
 
     def kinds(self) -> list[tuple[str, str]]:
         return [(call[0], call[1]) for call in self.calls]

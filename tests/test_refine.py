@@ -421,6 +421,47 @@ def test_the_double_check_ignores_capitals_and_punctuation():
     assert result.flags == []
 
 
+@pytest.mark.parametrize("source, tidied", [
+    ("SAME SPECIES, DIFFERENT WORLDS", "Same species, different worlds"),  # a heading in capitals
+    ("' 'I hate to do this to you, Dorothy", "I hate to do this to you, Dorothy"),  # stray quote marks
+])
+def test_a_tidied_source_is_what_gets_translated_judged_and_kept(source, tidied):
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE, tidied={source: tidied})
+
+    result = refine(Row(id="1", source=source, existing=None, origin=None), settings(tidy_model="m/t"), standin)
+
+    assert standin.kinds()[0] == ("tidy", "m/t")
+    assert {call[2].text for call in standin.calls if call[0] in ("translate", "judge", "top_judge")} == {tidied}
+    assert result.source == tidied
+    assert result.notes == ["source tidied"]
+
+
+def test_a_tidy_up_that_changes_a_word_is_rejected_and_the_original_kept():
+    source = "he squeaked."
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE, tidied={source: "He squealed."})  # "squeaked" became "squealed"
+
+    result = refine(Row(id="1", source=source, existing=None, origin=None), settings(tidy_model="m/t"), standin)
+
+    assert result.source == source
+    assert {call[2].text for call in standin.calls if call[0] == "translate"} == {source}
+    assert result.notes == ["tidy-up rejected: it changed words"]
+
+
+def test_without_a_tidy_model_no_tidy_up_is_asked():
+    standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
+                      panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},
+                      top_pick=ON_TABLE)
+
+    result = refine(BOOK, settings(), standin)
+
+    assert "tidy" not in [k for k, _ in standin.kinds()]
+    assert result.source == BOOK.source
+
+
 def test_back_translation_can_be_turned_off():
     standin = StandIn(translations={"m/a": ON_TABLE, "m/b": OVER_TABLE},
                       panel={judge: {ON_TABLE: (5, 5), OVER_TABLE: (3, 3)} for judge in ("m/c", "m/d")},

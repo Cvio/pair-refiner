@@ -9,3 +9,4 @@ target_lang = "fa"
 register = "written"
 origin = "unknown"
 conversation = false
+tidy_source = true    # sentence-splitting left stray quotes and lines in CAPITALS (docs/adr/0006)

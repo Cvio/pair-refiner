@@ -8,6 +8,8 @@
 <div class="card">
   <div class="muted">Sentence {{ winner.id }}{% if winner.register %} · {{ winner.register }}{% endif %}</div>
   <p dir="auto" style="font-size:1.15rem">{{ winner.source }}</p>
+  {% if winner["original source"] %}<p class="muted" dir="auto">Original in the dataset: {{ winner["original source"] }}</p>
+  <p class="muted">(its punctuation and capitals were tidied; the words are the same)</p>{% endif %}
   {% if flags %}<p class="warn">Flags: {{ flags | join("; ") }}</p>{% endif %}
   {% if winner.notes %}<p class="muted">Notes: {{ winner.notes }}</p>{% endif %}
   {% if winner["top judge reason"] %}<p>Top judge's reason: {{ winner["top judge reason"] }}</p>{% endif %}

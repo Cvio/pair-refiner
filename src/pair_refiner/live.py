@@ -94,6 +94,9 @@ class LiveConnection:
             return self._google(text, source_lang, target_lang)
         return self._chat(model, *prompts.back_translate(text, source_lang, target_lang))
 
+    def tidy(self, model: str, text: str, lang: str) -> Answer:
+        return self._chat(model, *prompts.tidy(text, lang))
+
     def _chat(self, model: str, system: str, user: str, schema: tuple[str, dict] | None = None) -> Answer:
         info = self._models.get(model)
         if info is None:

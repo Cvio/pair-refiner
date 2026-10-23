@@ -21,7 +21,7 @@ def write(folder: Path, report, dataset: DatasetSettings, settings, times: dict)
 def _pairs(path: Path, report, dataset: DatasetSettings) -> None:
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         for s in report.sentences:
-            pair = {"source": s.row.source, "target": s.result.winner.text, "source_lang": dataset.source_lang,
+            pair = {"source": s.result.source or s.row.source, "target": s.result.winner.text, "source_lang": dataset.source_lang,
                     "target_lang": dataset.target_lang, "register": s.register,
                     "author": list(s.result.winner.authors), "id": s.row.id}
             f.write(json.dumps(pair, ensure_ascii=False) + "\n")
@@ -30,7 +30,7 @@ def _pairs(path: Path, report, dataset: DatasetSettings) -> None:
 def _candidates(path: Path, report, judges: list[str]) -> None:
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
         out = csv.writer(f)
-        out.writerow(["id", "register", "source", "candidate", "authors",
+        out.writerow(["id", "register", "source", "original source", "candidate", "authors",
                       *(f"{judge} {score}" for judge in judges for score in ("meaning", "naturalness")),
                       "panel meaning", "panel naturalness", "shortlisted", "winner", "top judge reason",
                       "back-translation", "chrF", "replaced", "notes", "sentence cost"])
@@ -43,7 +43,7 @@ def _candidates(path: Path, report, judges: list[str]) -> None:
                             "" if r.chrf is None else f"{r.chrf:.1f}",
                             "" if not _had_dataset_translation(r) else ("yes" if r.replaced else "no"),
                             "; ".join(r.notes), f"{r.cost:.6f}"] if won else [""] * 6
-                out.writerow([s.row.id, s.register or "", s.row.source, c.text, " + ".join(c.authors),
+                out.writerow([s.row.id, s.register or "", s.result.source or s.row.source, _original(s), c.text, " + ".join(c.authors),
                               *_votes(c, judges), f"{meaning:.2f}", f"{naturalness:.2f}",
                               "yes" if c in r.shortlist else "", "yes" if won else "", *sentence])
 
@@ -71,7 +71,7 @@ def _flags(path: Path, report) -> None:
         out.writerow(["id", "register", "source", "winner", "flag"])
         for s in report.sentences:
             for flag in s.result.flags:
-                out.writerow([s.row.id, s.register or "", s.row.source, s.result.winner.text, flag])
+                out.writerow([s.row.id, s.register or "", s.result.source or s.row.source, s.result.winner.text, flag])
 
 
 def _run_json(path: Path, report, dataset: DatasetSettings, settings, times: dict) -> None:
@@ -86,3 +86,9 @@ def _run_json(path: Path, report, dataset: DatasetSettings, settings, times: dic
         **times,
     }
     path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _original(sentence) -> str:
+    """The source as the dataset wrote it, when the tidy-up changed it (docs/adr/0006); empty otherwise."""
+    tidied = sentence.result.source
+    return sentence.row.source if tidied and tidied != sentence.row.source else ""

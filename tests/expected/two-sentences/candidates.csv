@@ -1,5 +1,5 @@
-﻿id,register,source,candidate,authors,m/a meaning,m/a naturalness,m/c meaning,m/c naturalness,panel meaning,panel naturalness,shortlisted,winner,top judge reason,back-translation,chrF,replaced,notes,sentence cost
-1,written,The book is on the table.,کتاب روی میز است.,m/a,5 (own),5 (own),5,4,5.00,4.00,yes,yes,It reads best.,The book is on the table.,100.0,,,0.043000
-1,written,The book is on the table.,کتاب بالای میز است.,m/b,3,4,2,3,2.50,3.50,yes,,,,,,,
-2,written,Good night.,شب بخیر.,m/b + dataset,3,4,5,5,4.00,4.50,yes,yes,It reads best.,Good night.,100.0,no,,0.043000
-2,written,Good night.,شب خوش.,m/a,5 (own),5 (own),3,3,3.00,3.00,yes,,,,,,,
+﻿id,register,source,original source,candidate,authors,m/a meaning,m/a naturalness,m/c meaning,m/c naturalness,panel meaning,panel naturalness,shortlisted,winner,top judge reason,back-translation,chrF,replaced,notes,sentence cost
+1,written,The book is on the table.,THE BOOK IS ON THE TABLE.,کتاب روی میز است.,m/a,5 (own),5 (own),5,4,5.00,4.00,yes,yes,It reads best.,The book is on the table.,100.0,,source tidied,0.043100
+1,written,The book is on the table.,THE BOOK IS ON THE TABLE.,کتاب بالای میز است.,m/b,3,4,2,3,2.50,3.50,yes,,,,,,,
+2,written,Good night.,,شب بخیر.,m/b + dataset,3,4,5,5,4.00,4.50,yes,yes,It reads best.,Good night.,100.0,no,,0.043100
+2,written,Good night.,,شب خوش.,m/a,5 (own),5 (own),3,3,3.00,3.00,yes,,,,,,,

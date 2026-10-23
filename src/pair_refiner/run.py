@@ -26,6 +26,7 @@ class RunSettings:
     register: str = "written"  # "written", "spoken" or "both" (Persian only)
     sentence_limit: int | None = None
     spending_limit: float | None = None  # USD
+    tidy_model: str | None = None  # the model that tidies a source, for datasets with tidy_source on
 
 
 @dataclass
@@ -122,4 +123,4 @@ def refine_settings(dataset: DatasetSettings, settings: RunSettings, register: s
         source_lang=dataset.source_lang, target_lang=dataset.target_lang, register=register or "written",
         translators=settings.translators, judges=settings.judges, top_judge=settings.top_judge,
         shortlist_size=settings.shortlist_size, back_translation=settings.back_translation,
-        chrf_threshold=settings.chrf_threshold)
+        chrf_threshold=settings.chrf_threshold, tidy_model=settings.tidy_model if dataset.tidy_source else None)

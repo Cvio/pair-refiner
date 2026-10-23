@@ -67,6 +67,10 @@ class Connection(Protocol):
 
     def back_translate(self, model: str, text: str, source_lang: str, target_lang: str) -> Answer: ...
 
+    def tidy(self, model: str, text: str, lang: str) -> Answer:
+        """The text with only its punctuation and capitals fixed; the same words."""
+        ...
+
 
 class OpenRouter:
     def list_models(self) -> list[Model]:

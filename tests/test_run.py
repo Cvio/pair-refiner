@@ -42,7 +42,7 @@ def test_a_run_refines_every_sentence_up_to_the_sentence_limit(tmp_path):
 
 FIVE_CENTS = Estimator(  # every call: 5,000 tokens in and out at $1 per million = $0.01; 5 calls a sentence
     prices={model: (1.0, 1.0) for model in ("m/a", "m/b", "m/c", "m/d")},
-    lengths={(kind, model): (5000, 5000) for kind in ("translate", "judge", "top_judge", "back_translate")
+    lengths={(kind, model): (5000, 5000) for kind in ("translate", "judge", "top_judge", "back_translate", "tidy")
              for model in ("m/a", "m/b", "m/c", "m/d")},
 )
 
@@ -115,6 +115,26 @@ def test_a_dry_run_with_one_translator_counts_no_judging_but_the_judges_double_c
 
     # Per sentence: Google, 11 characters x $20 per million = $0.00022, and m/c's double-check $0.01.
     assert report.estimate == pytest.approx(3 * 0.01022)
+
+
+def test_a_dry_run_counts_the_tidy_up_when_the_dataset_asks_for_it(tmp_path):
+    dataset = DatasetSettings(source_lang="en", target_lang="fa", tidy_source=True)
+
+    report = run(ROWS, dataset, settings(tidy_model="m/d"), CachedConnection(standin(), tmp_path / "c.sqlite"),
+                 tmp_path / "run", estimator=FIVE_CENTS, dry_run=True)
+
+    assert report.estimate == pytest.approx(3 * (0.05 + 0.01))  # each sentence: 5 calls, plus the tidy-up
+
+
+@pytest.mark.parametrize("tidy_source, tidy_calls", [(True, 3), (False, 0)])
+def test_the_source_is_tidied_only_when_the_dataset_asks_for_it(tmp_path, tidy_source, tidy_calls):
+    connection = standin()
+    dataset = DatasetSettings(source_lang="en", target_lang="fa", tidy_source=tidy_source)
+
+    run(ROWS, dataset, settings(tidy_model="m/t"), CachedConnection(connection, tmp_path / "c.sqlite"),
+        tmp_path / "run")
+
+    assert len([k for k in connection.kinds() if k[0] == "tidy"]) == tidy_calls
 
 
 def test_register_both_picks_a_written_and_a_spoken_version_of_each_sentence(tmp_path):

@@ -11,7 +11,8 @@ from pair_refiner.live import GOOGLE_PRICE_PER_CHARACTER
 from pair_refiner.refine import RefineSettings
 
 # The rough guess, as (input tokens, output tokens with thinking), used until the cache has measured a call.
-ROUGH_TOKENS = {"translate": (250, 280), "judge": (700, 500), "top_judge": (500, 300), "back_translate": (150, 260)}
+ROUGH_TOKENS = {"translate": (250, 280), "judge": (700, 500), "top_judge": (500, 300), "back_translate": (150, 260),
+                "tidy": (200, 60)}
 
 
 @dataclass
@@ -21,7 +22,7 @@ class Estimator:
 
     def sentence_cost(self, row: Row, settings: RefineSettings) -> float:
         """One sentence in one register: every translation, every judge, the top judge and the double-check."""
-        cost = 0.0
+        cost = self._call("tidy", settings.tidy_model) if settings.tidy_model else 0.0
         for model in settings.translators:
             if model == GOOGLE_TRANSLATE:
                 cost += len(row.source) * GOOGLE_PRICE_PER_CHARACTER

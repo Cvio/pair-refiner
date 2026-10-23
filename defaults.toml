@@ -24,6 +24,12 @@ judges = ["openai/gpt-6.1-sol"]
 top_judge = "openai/gpt-6.1-sol"
 back_translation = false                     # back into Persian scores low on chrF: a threshold would flag half
 
+# Tidies a source sentence's punctuation and capitals, for datasets with tidy_source = true (docs/adr/0006).
+# The words must come back unchanged, or the original is kept. GPT-6.1 Sol got all 7 of MIZAN's untidy examples
+# right (about $0.0006 a sentence); DeepSeek kept an unpaired opening quote; Gemini capitalised a fragment.
+[tidy]
+model = "openai/gpt-6.1-sol"
+
 # The panel measured by the M6 test run (flores_run.py), kept to re-run it, e.g. once Meta's block is lifted.
 [panel]
 translators = [

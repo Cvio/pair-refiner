@@ -49,6 +49,9 @@ class CachedConnection:
     def back_translate(self, model: str, text: str, source_lang: str, target_lang: str) -> Answer:
         return self._ask("back_translate", model, text, source_lang, target_lang)
 
+    def tidy(self, model: str, text: str, lang: str) -> Answer:
+        return self._ask("tidy", model, text, lang)
+
     def _ask(self, kind: str, model: str, *args) -> Answer:
         request = [self.connection.fingerprint_for(kind), kind, model,
                    *(dataclasses.asdict(a) if isinstance(a, Task) else a for a in args)]

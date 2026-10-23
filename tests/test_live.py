@@ -76,6 +76,26 @@ def test_the_judge_prefers_the_register_it_was_asked_for(register, wanted):
     assert scores[wanted]["naturalness"] > scores[other]["naturalness"], answer.text
 
 
+@pytest.mark.parametrize("untidy, tidied", [  # MIZAN's own lines (M8)
+    ("SAME SPECIES, DIFFERENT WORLDS", "Same species, different worlds"),
+    ("' 'I hate to do this to you, Dorothy", "I hate to do this to you, Dorothy"),
+    ("SO boy!", "So boy!"),
+    ("Unlocking Your Inner Genius", "Unlocking your inner genius"),
+    ("Arne says he can get me work at the CSR in Sydney then", "Arne says he can get me work at the CSR in Sydney then"),
+    ("that she had told her John' to go away, and that he might be overhearing her inconsistent remarks.",
+     "that she had told her John to go away, and that he might be overhearing her inconsistent remarks."),
+    ("'picturing in me a hero of romance, and expecting unlimited indulgences from my chivalrous devotion.",
+     "picturing in me a hero of romance, and expecting unlimited indulgences from my chivalrous devotion."),
+])
+def test_the_tidy_up_fixes_punctuation_and_capitals_only(untidy, tidied):
+    with open(REPO / "defaults.toml", "rb") as f:
+        model = tomllib.load(f)["tidy"]["model"]
+
+    answer = LiveConnection(load_keys(REPO / "keys.toml")).tidy(model, untidy, "en")
+
+    assert answer.text == tidied
+
+
 def test_balance_reads_the_openrouter_credits_with_the_management_key():
     balance = LiveConnection(load_keys(REPO / "keys.toml")).balance()
 

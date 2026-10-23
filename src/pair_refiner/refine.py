@@ -4,7 +4,7 @@ import hashlib
 import json
 import random
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from string import ascii_uppercase
 
 import sacrebleu
@@ -25,6 +25,7 @@ class RefineSettings:
     shortlist_size: int = 3
     back_translation: bool = True
     chrf_threshold: float = 40.0
+    tidy_model: str | None = None  # tidies the source's punctuation and capitals first; None: no tidy-up
 
 
 @dataclass
@@ -60,6 +61,7 @@ class Result:
     back_translation: str | None = None  # the winner translated back into the source language
     chrf: float | None = None  # 0-100: how closely the back-translation matches the source
     notes: list[str] = field(default_factory=list)  # worth knowing, not a warning
+    source: str = ""  # the sentence as translated: the row's, or its tidied version
 
 
 DATASET = "dataset"  # the author of a dataset's own translation
@@ -67,6 +69,8 @@ DATASET = "dataset"  # the author of a dataset's own translation
 
 def refine(row: Row, settings: RefineSettings, connection: Connection) -> Result:
     calls = _Calls(connection)
+    source = _tidy(row, settings, calls) if settings.tidy_model else row.source
+    row = replace(row, source=source)
     task = Task(row.source, settings.source_lang, settings.target_lang, settings.register, row.context)
     candidates, reference = _candidates(row, settings, task, calls)
     if len(candidates) > 1:  # with a single candidate there is nothing to judge (docs/adr/0005)
@@ -88,7 +92,8 @@ def refine(row: Row, settings: RefineSettings, connection: Connection) -> Result
         calls.flags.append("panel disagreement")
     replaced = reference is not None and winner is not reference
     back, chrf = _back_translate(winner, row, settings, calls) if settings.back_translation else (None, None)
-    return Result(candidates, shortlist, winner, reason, calls.flags, calls.cost, replaced, back, chrf, calls.notes)
+    return Result(candidates, shortlist, winner, reason, calls.flags, calls.cost, replaced, back, chrf, calls.notes,
+                  row.source)
 
 
 class _Calls:
@@ -181,6 +186,22 @@ def _back_translate(winner: Candidate, row: Row, settings: RefineSettings,
     if chrf < settings.chrf_threshold:
         calls.flags.append("meaning may have changed")
     return back, chrf
+
+
+def _tidy(row: Row, settings: RefineSettings, calls: _Calls) -> str:
+    """The source with its punctuation and capitals tidied (docs/adr/0006). The tidied version is used only if its
+    words are exactly the original's; otherwise, or on a refusal, the original is kept."""
+    tidied = persian.tidy_if_persian(calls("tidy", settings.tidy_model, row.source, settings.source_lang),
+                                     settings.source_lang)
+    if not tidied:
+        calls.notes.append(f"no answer from {settings.tidy_model}")
+        return row.source
+    if _words_only(tidied) != _words_only(row.source):
+        calls.notes.append("tidy-up rejected: it changed words")
+        return row.source
+    if tidied != row.source:
+        calls.notes.append("source tidied")
+    return tidied
 
 
 def _words_only(text: str) -> str:

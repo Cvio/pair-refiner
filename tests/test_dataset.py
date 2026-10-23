@@ -236,6 +236,15 @@ def test_a_settings_file_names_the_dataset_and_its_settings(tmp_path):
     assert [(r.source, r.origin) for r in read_dataset(path, settings)] == [("Thank you.", "unknown")]
 
 
+def test_a_settings_file_can_ask_for_the_source_to_be_tidied(tmp_path):
+    settings_file = write(tmp_path, "data.toml",
+                          'file = "data.csv"\nsource_lang = "en"\ntarget_lang = "fa"\ntidy_source = true\n')
+
+    _, settings = read_settings(settings_file)
+
+    assert settings.tidy_source is True
+
+
 def test_a_settings_file_with_an_unknown_setting_stops_with_a_clear_message(tmp_path):
     settings_file = write(tmp_path, "data.toml", 'file = "data.csv"\nsource_lang = "en"\ntarget_lang = "fa"\norgin = "native"\n')
 

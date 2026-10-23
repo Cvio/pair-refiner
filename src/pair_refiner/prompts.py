@@ -95,6 +95,21 @@ def back_translate(text: str, source_lang: str, target_lang: str) -> tuple[str, 
     return system, text
 
 
+def tidy(text: str, lang: str) -> tuple[str, str]:
+    """(system, user) messages for tidying a source sentence's punctuation and capitals (docs/adr/0006)."""
+    system = (f"You fix the punctuation and capital letters of one {LANGUAGES[lang]} sentence taken from a book, "
+              "which automatic sentence-splitting may have left untidy. Only:\n"
+              "- remove every quotation mark whose partner is not in this same sentence: an opening quote with no "
+              "closing quote, a closing quote with no opening quote, or a stray ' or \" after a word. Keep "
+              "apostrophes inside words (don't, John's) and quotation marks that open and close in the sentence;\n"
+              "- write a line in ALL CAPITALS or Title Case in normal sentence case, keeping capitals on names, "
+              "places, acronyms and the word 'I';\n"
+              "- fix spacing around punctuation.\n"
+              "Never change, add, remove or reorder a word. Don't add a full stop to a fragment. If nothing needs "
+              "fixing, reply with the sentence exactly as it is. Reply with the sentence only.")
+    return system, text
+
+
 def _candidates_message(task: Task, candidates: dict[str, str], attempt: int) -> str:
     lines = [f"{LANGUAGES[task.source_lang]} sentence: {task.text}", "", "Candidates:"]
     lines += [f"{label}: {text}" for label, text in candidates.items()]
@@ -133,4 +148,5 @@ FINGERPRINTS = {
     "judge": _fingerprint(judge, judge_schema, *_JUDGING),
     "top_judge": _fingerprint(top_judge, top_judge_schema, *_JUDGING),
     "back_translate": _fingerprint(back_translate, LANGUAGES),
+    "tidy": _fingerprint(tidy, LANGUAGES),
 }

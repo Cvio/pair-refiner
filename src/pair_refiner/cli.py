@@ -35,13 +35,15 @@ def main() -> None:
     args = parser.parse_args()
 
     with open(REPO / "defaults.toml", "rb") as f:
-        directions = tomllib.load(f)["directions"]
+        defaults = tomllib.load(f)
+    directions = defaults["directions"]
     path, dataset = read_settings(args.dataset)
     rows = read_dataset(path, dataset)
     direction = f"{dataset.source_lang}-{dataset.target_lang}"
     if direction not in directions:
         sys.exit(f"defaults.toml has no settings for {direction}.")
     settings = RunSettings(**directions[direction], register=args.register or dataset.register,
+                           tidy_model=defaults.get("tidy", {}).get("model"),
                            sentence_limit=args.sentences, spending_limit=args.limit)
     estimator = estimate.from_cache(OpenRouter().list_models(), CACHE)
     folder = REPO / "runs" / args.name

@@ -155,6 +155,13 @@ If no column matches, the tool stops and lists the names it accepts.
 - `conversation = true`: each line is sent with the two lines before it, so the models understand it
   in context. If the file holds several conversations, add a column saying which conversation each
   line belongs to, and name it in the settings: `conversation_column = "chat"`.
+- `tidy_source = true`: for untidy datasets, such as text split into sentences by a program. Before
+  translating, an AI model fixes **only punctuation and capitals**. It removes stray quote marks
+  (`' 'I hate to do this to you, Dorothy` → `I hate to do this to you, Dorothy`) and puts headings into
+  normal case (`SAME SPECIES, DIFFERENT WORLDS` → `Same species, different worlds`), keeping names and
+  acronyms. The tidied sentence is used only if its words are exactly the same as before; otherwise the
+  original is kept. `pairs.jsonl` gets the tidied sentence, and `candidates.csv` shows the original
+  alongside. It costs about $0.0006 a sentence, and it's off unless you add this line.
 
 **What the tool does when reading:** it skips empty rows and keeps only the first copy of a repeated
 sentence. It also tidies all Persian text: Arabic look-alike letters become Persian ones (ي → ی,
@@ -230,7 +237,7 @@ Each run writes to `runs\<run name>\`:
 | File | What's in it |
 |---|---|
 | `pairs.jsonl` | **the training pairs**, one line per sentence: `source`, `target`, the two languages, `register`, `author` (every model that wrote the winning text; `dataset` means your file's own translation) and `id` |
-| `candidates.csv` | every translation considered, best first, with every judge's scores, the winner, the head judge's reason, the double-check and its score, whether your file's translation was replaced, and the cost |
+| `candidates.csv` | every translation considered, best first, with every judge's scores, the winner, the head judge's reason, the double-check and its score, whether your file's translation was replaced, the cost, and (with `tidy_source`) the sentence as your file had it before tidying |
 | `flags.csv` | the sentences worth a look, and why |
 | `run.json` | the settings, totals, cost and time taken |
 
@@ -323,7 +330,7 @@ In the dashboard you can tick more translators and judges for any run.
 
 | Flag | Why |
 |---|---|
-| meaning may have changed | the double-check's chrF is below the threshold |
+| meaning may have changed | the double-check's chrF (compared without capitals or punctuation) is below the threshold. On short or literary lines this often just means the same meaning in other words ("The time went by" → "Time passed"): read the original and the double-check, both in the source language |
 | panel disagreement | the judges' meaning scores for the winner are 2 or more points apart |
 | top judge chose its own | the head judge picked its own model's translation when the panel didn't rank it first |
 | beats the native reference | a model beat your `native` translation by a point or more on meaning |
